@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.field-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #dde3ea;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.field-input:focus {
+  border-color: #111;
+}
