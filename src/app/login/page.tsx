@@ -8,7 +8,7 @@ export default async function LoginPage({
   const { next } = await searchParams;
 
   return (
-    <main className="flex min-h-full flex-1 items-center justify-center bg-[#f2f4f7] p-6">
+    <main className="flex min-h-full flex-1 items-center justify-center bg-[#faf8f3] p-6">
       <LoginForm next={next ?? "/dashboard"} />
     </main>
   );

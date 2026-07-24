@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { formatNZDate, formatNZTime } from "@/lib/nz-time";
+import { Stat, Panel, Empty, Pill } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function DashboardHomePage() {
     .not("open_home_start", "is", null)
     .order("open_home_start", { ascending: true });
 
-  const attentionItems: { text: string; pill: string; pillClass: string }[] = [];
+  const attentionItems: { text: string; pill: string; tone: "red" | "amber" }[] = [];
   for (const offer of openOffers) {
     const addr = listingAddress.get(offer.listing_id) ?? "a listing";
     const urgent = offer.expiry && new Date(offer.expiry).getTime() - Date.now() < 1000 * 60 * 60 * 48;
@@ -42,38 +43,34 @@ export default async function DashboardHomePage() {
         offer.amount ? ` — $${Number(offer.amount).toLocaleString()}` : ""
       }`,
       pill: urgent ? "Urgent" : "With vendor",
-      pillClass: urgent ? "bg-[#fae5e2] text-[#c0392b]" : "bg-[#faf0dd] text-[#b7791f]",
+      tone: urgent ? "red" : "amber",
     });
   }
 
   const stats = [
     { n: activeListings ?? 0, l: "Active listings" },
-    { n: monthCheckins?.length ?? 0, l: "Open home attendees (this month)" },
+    { n: monthCheckins?.length ?? 0, l: "Attendees this month" },
     { n: consentedEmails.size, l: "Contacts in database" },
     { n: openOffers.length, l: "Offers awaiting response" },
   ];
 
   return (
     <div>
-      <h1 className="mb-1 text-[22px] font-bold">Good morning, Chris</h1>
-      <p className="mb-6 text-[13.5px] text-[#6b7787]">
+      <h1 className="font-display mb-1 text-[26px] font-semibold tracking-tight">Good morning, Chris</h1>
+      <p className="mb-8 text-[13.5px] text-[#837c6c]">
         {formatNZDate(new Date(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       </p>
 
-      <div className="mb-6 grid grid-cols-2 gap-3.5 md:grid-cols-4">
+      <div className="mb-9 grid grid-cols-2 gap-6 md:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.l} className="rounded-xl border border-[#e2e7ed] bg-white p-4">
-            <div className="text-[26px] font-bold">{s.n}</div>
-            <div className="mt-0.5 text-xs text-[#6b7787]">{s.l}</div>
-          </div>
+          <Stat key={s.l} n={s.n} l={s.l} />
         ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-[#e2e7ed] bg-white p-5">
-          <h3 className="mb-3 text-[15px] font-semibold">Needs your attention</h3>
+        <Panel title="Needs your attention">
           {attentionItems.length === 0 ? (
-            <p className="text-sm text-[#6b7787]">Nothing needs attention right now.</p>
+            <Empty text="Nothing needs attention right now." />
           ) : (
             <table className="w-full text-[13px]">
               <tbody>
@@ -81,21 +78,18 @@ export default async function DashboardHomePage() {
                   <tr key={i} className="border-b border-[#eef1f5] last:border-none">
                     <td className="py-2.5 pr-3">{item.text}</td>
                     <td className="py-2.5 text-right">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${item.pillClass}`}>
-                        {item.pill}
-                      </span>
+                      <Pill tone={item.tone}>{item.pill}</Pill>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-        </div>
+        </Panel>
 
-        <div className="rounded-xl border border-[#e2e7ed] bg-white p-5">
-          <h3 className="mb-3 text-[15px] font-semibold">Upcoming open homes</h3>
+        <Panel title="Upcoming open homes">
           {(upcomingListings ?? []).length === 0 ? (
-            <p className="text-sm text-[#6b7787]">No open homes scheduled.</p>
+            <Empty text="No open homes scheduled." />
           ) : (
             <table className="w-full text-[13px]">
               <tbody>
@@ -104,17 +98,14 @@ export default async function DashboardHomePage() {
                     <td className="py-2.5 pr-3">
                       <b>{l.address}</b>
                       <br />
-                      <span className="text-[#6b7787]">
+                      <span className="text-[#837c6c]">
                         {formatNZDate(l.open_home_start!, { weekday: "short", day: "numeric", month: "short" })},{" "}
                         {formatNZTime(l.open_home_start!)}–{formatNZTime(l.open_home_end!)}
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      <Link
-                        href={`/checkin/${l.id}`}
-                        className="rounded-full bg-[#ececec] px-2.5 py-0.5 text-[11px] font-semibold text-[#111]"
-                      >
-                        Check-in ready
+                      <Link href={`/checkin/${l.id}`}>
+                        <Pill tone="slate">Check-in ready</Pill>
                       </Link>
                     </td>
                   </tr>
@@ -122,7 +113,7 @@ export default async function DashboardHomePage() {
               </tbody>
             </table>
           )}
-        </div>
+        </Panel>
       </div>
     </div>
   );

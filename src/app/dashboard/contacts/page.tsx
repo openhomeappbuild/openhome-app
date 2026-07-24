@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { computeTier, TIER_STYLES, type Tier } from "@/lib/tier";
 import { formatNZDate } from "@/lib/nz-time";
+import { Panel, Pill } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -71,20 +72,19 @@ export default async function ContactsPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-[22px] font-bold">Contacts database</h1>
-      <p className="mb-6 text-[13.5px] text-[#6b7787]">
+      <h1 className="font-display mb-1 text-[26px] font-semibold tracking-tight">Contacts database</h1>
+      <p className="mb-8 text-[13.5px] text-[#837c6c]">
         {contacts.length} contacts · {subscriberCount} newsletter subscribers · grown automatically from open home
         sign-ins (with consent)
       </p>
 
-      <div className="rounded-xl border border-[#e2e7ed] bg-white p-5">
-        <h3 className="mb-3 text-[15px] font-semibold">All contacts</h3>
+      <Panel title="All contacts">
         {contacts.length === 0 ? (
-          <p className="text-sm text-[#6b7787]">No contacts yet — they'll appear here as attendees check in.</p>
+          <p className="text-sm text-[#837c6c]">No contacts yet — they'll appear here as attendees check in.</p>
         ) : (
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-[#e2e7ed] text-left text-[11px] uppercase tracking-wide text-[#6b7787]">
+              <tr className="border-b border-[#e7e2d4] text-left text-[11px] uppercase tracking-wide text-[#837c6c]">
                 <th className="pb-2">Tier</th>
                 <th className="pb-2">Name</th>
                 <th className="pb-2">Source</th>
@@ -106,21 +106,17 @@ export default async function ContactsPage() {
                   </td>
                   <td className="py-2.5 pr-2">
                     <b>{c.fullName}</b>
-                    <div className="text-[#6b7787]">{c.email}</div>
+                    <div className="text-[#837c6c]">{c.email}</div>
                   </td>
-                  <td className="py-2.5 pr-2 text-[#43505e]">{c.source}</td>
+                  <td className="py-2.5 pr-2 text-[#524d40]">{c.source}</td>
                   <td className="py-2.5 pr-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${c.isLocal ? "bg-[#e3f4ec] text-[#1e8e5a]" : "bg-[#edf0f4] text-[#6b7787]"}`}>
-                      {c.isLocal ? c.suburb || "Local" : "Out of area"}
-                    </span>
+                    <Pill tone={c.isLocal ? "green" : "grey"}>{c.isLocal ? c.suburb || "Local" : "Out of area"}</Pill>
                   </td>
                   <td className="py-2.5 pr-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${c.consent ? "bg-[#ececec] text-[#111]" : "bg-[#edf0f4] text-[#6b7787]"}`}>
-                      {c.consent ? "Subscribed" : "Not subscribed"}
-                    </span>
+                    <Pill tone={c.consent ? "slate" : "grey"}>{c.consent ? "Subscribed" : "Not subscribed"}</Pill>
                   </td>
-                  <td className="py-2.5 pr-2 text-[#43505e]">{c.interest}</td>
-                  <td className="py-2.5 text-[#43505e]">
+                  <td className="py-2.5 pr-2 text-[#524d40]">{c.interest}</td>
+                  <td className="py-2.5 text-[#524d40] tabular-nums">
                     {formatNZDate(c.addedAt, { day: "numeric", month: "short" })}
                   </td>
                 </tr>
@@ -128,11 +124,11 @@ export default async function ContactsPage() {
             </tbody>
           </table>
         )}
-        <p className="mt-4 text-xs text-[#6b7787]">
+        <p className="mt-4 text-xs text-[#837c6c]">
           Only attendees who ticked the consent box at sign-in are added — Privacy Act 2020 compliant. Every email
           includes one-click unsubscribe.
         </p>
-      </div>
+      </Panel>
     </div>
   );
 }

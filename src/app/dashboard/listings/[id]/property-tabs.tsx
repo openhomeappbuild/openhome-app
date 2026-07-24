@@ -5,6 +5,7 @@ import Link from "next/link";
 import { addOffer, uploadDocument, type ActionState } from "./actions";
 import { TIER_STYLES, type Tier } from "@/lib/tier";
 import { formatNZDate, formatNZDayKey, formatNZTime } from "@/lib/nz-time";
+import { Stat, Panel, Empty, Pill } from "../../ui";
 
 type Listing = {
   id: string;
@@ -50,22 +51,22 @@ type Document = {
   url: string | null;
 };
 
-const CATEGORY_LABELS: Record<string, { icon: string; label: string }> = {
-  title: { icon: "📜", label: "Record of Title" },
-  lim: { icon: "🏛️", label: "LIM Report" },
-  builders_report: { icon: "🔧", label: "Builder's report" },
-  consents: { icon: "🏗️", label: "Code Compliance & consents" },
-  floor_plan: { icon: "📐", label: "Floor plan" },
-  sale_agreement: { icon: "📄", label: "Sale & purchase agreement" },
-  other: { icon: "📄", label: "Other document" },
+const CATEGORY_LABELS: Record<string, { mark: string; label: string }> = {
+  title: { mark: "RoT", label: "Record of Title" },
+  lim: { mark: "LIM", label: "LIM Report" },
+  builders_report: { mark: "BR", label: "Builder's report" },
+  consents: { mark: "CCC", label: "Code Compliance & consents" },
+  floor_plan: { mark: "FP", label: "Floor plan" },
+  sale_agreement: { mark: "SPA", label: "Sale & purchase agreement" },
+  other: { mark: "DOC", label: "Other document" },
 };
 
-const OFFER_STATUS_STYLES: Record<string, string> = {
-  indicated: "bg-[#edf0f4] text-[#6b7787]",
-  with_vendor: "bg-[#faf0dd] text-[#b7791f]",
-  accepted: "bg-[#e3f4ec] text-[#1e8e5a]",
-  declined: "bg-[#fae5e2] text-[#c0392b]",
-  withdrawn: "bg-[#edf0f4] text-[#6b7787]",
+const OFFER_STATUS_TONE: Record<string, "grey" | "amber" | "green" | "red"> = {
+  indicated: "grey",
+  with_vendor: "amber",
+  accepted: "green",
+  declined: "red",
+  withdrawn: "grey",
 };
 
 const TABS = ["Overview", "Documents", "Open homes", "Offers"] as const;
@@ -88,14 +89,14 @@ export function PropertyTabs({
 
   return (
     <div>
-      <div className="mb-1 text-xs text-[#6b7787]">
-        <Link href="/dashboard/listings" className="font-semibold text-[#111]">
+      <div className="mb-1 text-xs text-[#837c6c]">
+        <Link href="/dashboard/listings" className="font-semibold text-[#14130f]">
           Listings
         </Link>{" "}
         / {listing.address}
       </div>
-      <h1 className="mb-1 text-[22px] font-bold">{listing.address}</h1>
-      <p className="mb-5 text-[13.5px] text-[#6b7787]">
+      <h1 className="font-display mb-1 text-[26px] font-semibold tracking-tight">{listing.address}</h1>
+      <p className="mb-6 text-[13.5px] text-[#837c6c]">
         {listing.bedrooms ? `${listing.bedrooms} bed · ` : ""}
         {listing.bathrooms ? `${listing.bathrooms} bath · ` : ""}
         {listing.suburb}
@@ -105,13 +106,13 @@ export function PropertyTabs({
           : ""}
       </p>
 
-      <div className="mb-5 flex gap-1 border-b-2 border-[#e2e7ed]">
+      <div className="mb-6 flex gap-1 border-b border-[#e7e2d4]">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`-mb-0.5 border-b-[2.5px] px-4 py-2.5 text-[13.5px] font-semibold ${
-              tab === t ? "border-[#111] text-[#111]" : "border-transparent text-[#6b7787]"
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[13.5px] font-semibold transition-colors ${
+              tab === t ? "border-[#14130f] text-[#14130f]" : "border-transparent text-[#837c6c] hover:text-[#14130f]"
             }`}
           >
             {t}
@@ -121,7 +122,7 @@ export function PropertyTabs({
 
       {tab === "Overview" && (
         <div>
-          <div className="mb-5 grid grid-cols-2 gap-3.5 md:grid-cols-4">
+          <div className="mb-8 grid grid-cols-2 gap-6 md:grid-cols-4">
             <Stat n={stats.totalAttendees} l="Total attendees" />
             <Stat n={`${localPct}%`} l="Local buyers" d={`${stats.localCount} of ${stats.totalAttendees} attendees`} />
             <Stat n={stats.consentCount} l="Opted into database" />
@@ -152,16 +153,16 @@ export function PropertyTabs({
                       {t}
                     </span>
                     <div
-                      className="h-4 rounded bg-[#111]"
+                      className="h-4 rounded bg-[#14130f]"
                       style={{
                         width: `${Math.max((stats.tierCounts[t] / Math.max(stats.totalAttendees, 1)) * 220, stats.tierCounts[t] > 0 ? 8 : 0)}px`,
                       }}
                     />
-                    <span className="font-bold">{stats.tierCounts[t]}</span>
+                    <span className="font-bold tabular-nums">{stats.tierCounts[t]}</span>
                   </div>
                 ))}
               </div>
-              <p className="mt-2.5 text-xs text-[#6b7787]">
+              <p className="mt-2.5 text-xs text-[#837c6c]">
                 Tiers update automatically as buyers revisit or make offers.
               </p>
             </Panel>
@@ -178,38 +179,12 @@ export function PropertyTabs({
   );
 }
 
-function Stat({ n, l, d }: { n: number | string; l: string; d?: string }) {
-  return (
-    <div className="rounded-xl border border-[#e2e7ed] bg-white p-4">
-      <div className="text-[26px] font-bold">{n}</div>
-      <div className="mt-0.5 text-xs text-[#6b7787]">{l}</div>
-      {d && <div className="mt-1.5 text-[11.5px] font-semibold text-[#1e8e5a]">{d}</div>}
-    </div>
-  );
-}
-
-function Panel({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-[#e2e7ed] bg-white p-5">
-      <h3 className="mb-3 flex items-center justify-between text-[15px] font-semibold">
-        {title}
-        {action}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return <p className="text-sm text-[#6b7787]">{text}</p>;
-}
-
 function BarRow({ label, value, max }: { label: string; value: number; max: number }) {
   return (
     <div className="flex items-center gap-2.5 text-[12.5px]">
-      <span className="w-[110px] flex-shrink-0 text-[#6b7787]">{label}</span>
-      <div className="h-4 rounded bg-[#111]" style={{ width: `${(value / max) * 220}px` }} />
-      <span className="font-bold">{value}</span>
+      <span className="w-[110px] flex-shrink-0 text-[#837c6c]">{label}</span>
+      <div className="h-4 rounded bg-[#14130f]" style={{ width: `${(value / max) * 220}px` }} />
+      <span className="font-bold tabular-nums">{value}</span>
     </div>
   );
 }
@@ -223,29 +198,18 @@ function AttendeeRow({ a }: { a: Attendee }) {
         </span>
       </td>
       <td className="py-2.5 pr-2 font-bold">{a.full_name}</td>
-      <td className="py-2.5 pr-2 text-[#43505e]">
+      <td className="py-2.5 pr-2 text-[#524d40] tabular-nums">
         {a.mobile} · {a.email}
       </td>
       <td className="py-2.5 pr-2">
         <Pill tone={a.is_local ? "green" : "grey"}>{a.is_local ? a.suburb || "Local" : "Out of area"}</Pill>
       </td>
       <td className="py-2.5 pr-2">
-        <Pill tone={a.consent ? "teal" : "grey"}>{a.consent ? "Opted in" : "Declined"}</Pill>
+        <Pill tone={a.consent ? "slate" : "grey"}>{a.consent ? "Opted in" : "Declined"}</Pill>
       </td>
-      <td className="py-2.5 text-[#43505e]">{a.interest}</td>
+      <td className="py-2.5 text-[#524d40]">{a.interest}</td>
     </tr>
   );
-}
-
-function Pill({ tone, children }: { tone: "green" | "grey" | "teal" | "red" | "amber"; children: React.ReactNode }) {
-  const styles: Record<string, string> = {
-    green: "bg-[#e3f4ec] text-[#1e8e5a]",
-    grey: "bg-[#edf0f4] text-[#6b7787]",
-    teal: "bg-[#ececec] text-[#111]",
-    red: "bg-[#fae5e2] text-[#c0392b]",
-    amber: "bg-[#faf0dd] text-[#b7791f]",
-  };
-  return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${styles[tone]}`}>{children}</span>;
 }
 
 function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees: Attendee[] }[] }) {
@@ -262,7 +226,7 @@ function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees
       <Panel title={`${formatNZDayKey(latest.day, { weekday: "long", day: "numeric", month: "long" })} · ${latest.attendees.length} attendees`}>
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-[#e2e7ed] text-left text-[11px] uppercase tracking-wide text-[#6b7787]">
+            <tr className="border-b border-[#e7e2d4] text-left text-[11px] uppercase tracking-wide text-[#837c6c]">
               <th className="pb-2">Tier</th>
               <th className="pb-2">Name</th>
               <th className="pb-2">Contact</th>
@@ -310,7 +274,10 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
     <Panel
       title={`Offers (${offers.length})`}
       action={
-        <button onClick={() => setShowForm((s) => !s)} className="rounded-lg border border-[#e2e7ed] px-3 py-1.5 text-xs font-semibold">
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="rounded border border-[#e7e2d4] px-3 py-1.5 text-xs font-semibold hover:border-[#14130f]"
+        >
           {showForm ? "Cancel" : "+ Log offer"}
         </button>
       }
@@ -321,7 +288,7 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
             formAction(fd);
             setShowForm(false);
           }}
-          className="mb-5 grid grid-cols-2 gap-3 rounded-lg border border-[#e2e7ed] p-4"
+          className="mb-5 grid grid-cols-2 gap-3 rounded-lg border border-[#e7e2d4] bg-[#faf8f3] p-4"
         >
           <input name="buyerName" placeholder="Buyer name" required className="field-input col-span-2" />
           <input name="buyerEmail" placeholder="Buyer email (optional)" className="field-input" />
@@ -335,10 +302,10 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
             <option value="declined">Declined</option>
             <option value="withdrawn">Withdrawn</option>
           </select>
-          <button disabled={pending} className="col-span-2 rounded-lg bg-[#111] py-2 text-sm font-semibold text-white">
+          <button disabled={pending} className="col-span-2 rounded-lg bg-[#14130f] py-2 text-sm font-semibold text-white">
             Save offer
           </button>
-          {state.error && <p className="col-span-2 text-sm text-[#c0392b]">{state.error}</p>}
+          {state.error && <p className="col-span-2 text-sm text-[#b23b2e]">{state.error}</p>}
         </form>
       )}
       {offers.length === 0 ? (
@@ -346,7 +313,7 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
       ) : (
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-[#e2e7ed] text-left text-[11px] uppercase tracking-wide text-[#6b7787]">
+            <tr className="border-b border-[#e7e2d4] text-left text-[11px] uppercase tracking-wide text-[#837c6c]">
               <th className="pb-2">Buyer</th>
               <th className="pb-2">Amount</th>
               <th className="pb-2">Conditions</th>
@@ -359,24 +326,22 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
               <tr key={o.id} className="border-b border-[#eef1f5] last:border-none">
                 <td className="py-2.5 pr-2">
                   <b>{o.buyer_name}</b>
-                  {o.buyer_email && <div className="text-[#6b7787]">{o.buyer_email}</div>}
+                  {o.buyer_email && <div className="text-[#837c6c]">{o.buyer_email}</div>}
                 </td>
-                <td className="py-2.5 pr-2 font-bold">{o.amount ? `$${Number(o.amount).toLocaleString()}` : "—"}</td>
-                <td className="py-2.5 pr-2 text-[#43505e]">{o.conditions || "—"}</td>
-                <td className="py-2.5 pr-2 text-[#43505e]">
+                <td className="py-2.5 pr-2 font-bold tabular-nums">{o.amount ? `$${Number(o.amount).toLocaleString()}` : "—"}</td>
+                <td className="py-2.5 pr-2 text-[#524d40]">{o.conditions || "—"}</td>
+                <td className="py-2.5 pr-2 text-[#524d40] tabular-nums">
                   {o.expiry ? `${formatNZDate(o.expiry, { day: "numeric", month: "short" })}, ${formatNZTime(o.expiry)}` : "—"}
                 </td>
                 <td className="py-2.5">
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${OFFER_STATUS_STYLES[o.status]}`}>
-                    {o.status.replace("_", " ")}
-                  </span>
+                  <Pill tone={OFFER_STATUS_TONE[o.status] ?? "grey"}>{o.status.replace("_", " ")}</Pill>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="mt-3 text-xs text-[#6b7787]">All offers logged with timestamps for vendor reporting and REA compliance.</p>
+      <p className="mt-3 text-xs text-[#837c6c]">All offers logged with timestamps for vendor reporting and REA compliance.</p>
     </Panel>
   );
 }
@@ -390,13 +355,16 @@ function DocumentsTab({ listingId, documents }: { listingId: string; documents: 
     <Panel
       title="Property documents"
       action={
-        <button onClick={() => setShowForm((s) => !s)} className="rounded-lg border border-[#e2e7ed] px-3 py-1.5 text-xs font-semibold">
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="rounded border border-[#e7e2d4] px-3 py-1.5 text-xs font-semibold hover:border-[#14130f]"
+        >
           {showForm ? "Cancel" : "+ Upload document"}
         </button>
       }
     >
       {showForm && (
-        <form action={formAction} className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-[#e2e7ed] p-4">
+        <form action={formAction} className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-[#e7e2d4] bg-[#faf8f3] p-4">
           <select name="category" className="field-input w-auto" defaultValue="other">
             {Object.entries(CATEGORY_LABELS).map(([value, { label }]) => (
               <option key={value} value={value}>
@@ -405,10 +373,10 @@ function DocumentsTab({ listingId, documents }: { listingId: string; documents: 
             ))}
           </select>
           <input name="file" type="file" required className="text-sm" />
-          <button disabled={pending} className="rounded-lg bg-[#111] px-4 py-2 text-sm font-semibold text-white">
+          <button disabled={pending} className="rounded-lg bg-[#14130f] px-4 py-2 text-sm font-semibold text-white">
             Upload
           </button>
-          {state.error && <p className="w-full text-sm text-[#c0392b]">{state.error}</p>}
+          {state.error && <p className="w-full text-sm text-[#b23b2e]">{state.error}</p>}
         </form>
       )}
       {documents.length === 0 ? (
@@ -418,18 +386,23 @@ function DocumentsTab({ listingId, documents }: { listingId: string; documents: 
           const meta = CATEGORY_LABELS[doc.category] ?? CATEGORY_LABELS.other;
           return (
             <div key={doc.id} className="flex items-center gap-3 border-b border-[#eef1f5] py-3 last:border-none">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#ececec] text-lg">
-                {meta.icon}
+              <div className="flex h-9 w-11 flex-shrink-0 items-center justify-center rounded bg-[#f3f1ea] text-[10px] font-bold tracking-wide text-[#524d40]">
+                {meta.mark}
               </div>
               <div className="flex-1">
                 <b className="block text-[13.5px]">{doc.name}</b>
-                <span className="text-xs text-[#6b7787]">
+                <span className="text-xs text-[#837c6c]">
                   {meta.label} · {formatNZDate(doc.created_at, { day: "numeric", month: "short", year: "numeric" })}
                   {doc.size_bytes ? ` · ${Math.round(doc.size_bytes / 1024)} KB` : ""}
                 </span>
               </div>
               {doc.url && (
-                <a href={doc.url} target="_blank" rel="noreferrer" className="rounded-lg border border-[#e2e7ed] px-3 py-1.5 text-xs font-semibold">
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded border border-[#e7e2d4] px-3 py-1.5 text-xs font-semibold hover:border-[#14130f]"
+                >
                   View
                 </a>
               )}

@@ -3,6 +3,20 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  --ink: #14130f;
+  --paper: #faf8f3;
+  --surface: #ffffff;
+  --line: #e7e2d4;
+  --muted: #837c6c;
+  --ok: #2f6f4e;
+  --ok-bg: #e7f0ea;
+  --warn: #a9761f;
+  --warn-bg: #f6ecd9;
+  --err: #b23b2e;
+  --err-bg: #f6e4e1;
+  --slate: #33403c;
+  --slate-bg: #e9ede9;
 }
 
 @theme inline {
@@ -10,6 +24,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,14 +37,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 .field-input {
   width: 100%;
   padding: 12px 14px;
-  border: 1.5px solid #dde3ea;
-  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
   font-size: 15px;
   background: #fff;
   outline: none;
@@ -37,5 +52,10 @@ body {
 }
 
 .field-input:focus {
-  border-color: #111;
+  border-color: var(--ink);
+}
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
 }

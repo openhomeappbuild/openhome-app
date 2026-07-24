@@ -4,13 +4,6 @@ import { formatNZDate, nzDayKey } from "@/lib/nz-time";
 
 export const dynamic = "force-dynamic";
 
-const GRADIENTS = [
-  "from-[#31597c] to-[#16283f]",
-  "from-[#7c5a31] to-[#3f2d16]",
-  "from-[#317c5c] to-[#163f2d]",
-  "from-[#5c317c] to-[#2d163f]",
-];
-
 export default async function ListingsPage() {
   const { data: listings } = await supabaseAdmin
     .from("listings")
@@ -29,8 +22,8 @@ export default async function ListingsPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-[22px] font-bold">Listings</h1>
-      <p className="mb-6 text-[13.5px] text-[#6b7787]">
+      <h1 className="font-display mb-1 text-[26px] font-semibold tracking-tight">Listings</h1>
+      <p className="mb-8 text-[13.5px] text-[#837c6c]">
         {listings?.length ?? 0} active · click a listing to open its file
       </p>
 
@@ -41,31 +34,33 @@ export default async function ListingsPage() {
             <Link
               key={listing.id}
               href={`/dashboard/listings/${listing.id}`}
-              className="block overflow-hidden rounded-2xl border border-[#e2e7ed] bg-white transition-shadow hover:shadow-lg"
+              className="block overflow-hidden rounded-lg border border-[#e7e2d4] bg-white transition-colors hover:border-[#14130f]"
             >
-              <div
-                className={`flex h-[110px] items-end bg-gradient-to-br p-3 text-[34px] text-white ${
-                  GRADIENTS[i % GRADIENTS.length]
-                }`}
-              >
-                🏡
+              <div className="relative flex h-[86px] items-center justify-between bg-[#14130f] px-5">
+                <span className="font-display text-[28px] text-white/25">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
+                  {listing.sale_method}
+                </span>
               </div>
               <div className="p-4">
                 <div className="text-[15px] font-bold">{listing.address}</div>
-                <div className="my-1 text-xs text-[#6b7787]">
+                <div className="my-1 text-xs text-[#837c6c]">
                   {listing.bedrooms ? `${listing.bedrooms} bed · ` : ""}
                   {listing.bathrooms ? `${listing.bathrooms} bath · ` : ""}
                   {listing.car_spaces ? `${listing.car_spaces} car` : ""}
                 </div>
-                <div className="flex justify-between text-xs text-[#43505e]">
+                <div className="flex justify-between border-t border-[#eee9dc] pt-2.5 text-xs text-[#524d40]">
                   <span>
-                    {listing.sale_method}
                     {listing.sale_method_date
-                      ? ` — ${formatNZDate(listing.sale_method_date, { day: "numeric", month: "short", year: "numeric" })}`
+                      ? `Closes ${formatNZDate(listing.sale_method_date, { day: "numeric", month: "short", year: "numeric" })}`
                       : ""}
                   </span>
                   <b>
-                    {stats ? `${stats.openHomes.size} open home${stats.openHomes.size === 1 ? "" : "s"} · ${stats.attendees} attendees` : "No attendees yet"}
+                    {stats
+                      ? `${stats.openHomes.size} open home${stats.openHomes.size === 1 ? "" : "s"} · ${stats.attendees} attendees`
+                      : "No attendees yet"}
                   </b>
                 </div>
               </div>

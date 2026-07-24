@@ -4,17 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: "⌂" },
-  { href: "/dashboard/listings", label: "Listings", icon: "🏠" },
-  { href: "/dashboard/contacts", label: "Contacts database", icon: "👥" },
-  { href: "/dashboard/emails", label: "Emails & newsletter", icon: "✉️" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/listings", label: "Listings" },
+  { href: "/dashboard/contacts", label: "Contacts database" },
+  { href: "/dashboard/emails", label: "Emails & newsletter" },
 ];
 
 export function NavLinks() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex-1 p-2.5">
+    <nav className="flex-1 px-3 py-4">
       {LINKS.map((link) => {
         const active =
           link.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(link.href);
@@ -22,11 +22,12 @@ export function NavLinks() {
           <Link
             key={link.href}
             href={link.href}
-            className={`mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13.5px] ${
-              active ? "bg-[#111] font-semibold text-white" : "text-[#c6d2de] hover:bg-white/[0.06]"
+            className={`mb-0.5 block border-l-2 py-2.5 pl-3.5 text-[13.5px] transition-colors ${
+              active
+                ? "border-white font-semibold text-white"
+                : "border-transparent text-[#a39c89] hover:border-white/30 hover:text-white"
             }`}
           >
-            <span>{link.icon}</span>
             {link.label}
           </Link>
         );

@@ -19,9 +19,9 @@ export function computeTier({
 }
 
 export const TIER_STYLES: Record<Tier, string> = {
-  AAA: "bg-[#b3261e] text-white",
-  AA: "bg-[#e07b1f] text-white",
-  A: "bg-[#111] text-white",
-  B: "bg-[#c9d3de] text-[#33404f]",
-  C: "bg-[#edf0f4] text-[#8b98a7]",
+  AAA: "bg-[#b23b2e] text-white",
+  AA: "bg-[#a9761f] text-white",
+  A: "bg-[#14130f] text-white",
+  B: "bg-[#e7e2d4] text-[#524d40]",
+  C: "bg-[#f3f1ea] text-[#a39c89]",
 };
