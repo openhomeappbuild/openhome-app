@@ -62,6 +62,6 @@ insert into listings (
 select
   '15 Stonebrook Drive', 'Lake Hayes Estate', 'Queenstown', '9304', 4, 2, 2,
   'Deadline sale', '2026-08-14',
-  (current_date + time '13:00')::timestamptz,
-  (current_date + time '13:30')::timestamptz
+  (current_date + time '13:00') at time zone 'Pacific/Auckland',
+  (current_date + time '13:30') at time zone 'Pacific/Auckland'
 where not exists (select 1 from listings where address = '15 Stonebrook Drive');
