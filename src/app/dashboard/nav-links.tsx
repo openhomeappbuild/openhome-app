@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/dashboard/listings", label: "Listings" },
   { href: "/dashboard/contacts", label: "Contacts database" },
   { href: "/dashboard/emails", label: "Emails & newsletter" },
+  { href: "/dashboard/appraisals", label: "Appraisals" },
 ];
 
 export function NavLinks() {

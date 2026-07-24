@@ -59,3 +59,21 @@ body {
   font-family: var(--font-fraunces), Georgia, serif;
   font-optical-sizing: auto;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #proposal-doc,
+  #proposal-doc * {
+    visibility: visible;
+  }
+  #proposal-doc {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+}
