@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { formatNZDate, nzDayKey } from "@/lib/nz-time";
+import { AddListingForm } from "./add-listing-form";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,11 @@ export default async function ListingsPage() {
   return (
     <div>
       <h1 className="font-display mb-1 text-[26px] font-semibold tracking-tight">Listings</h1>
-      <p className="mb-8 text-[13.5px] text-[#837c6c]">
+      <p className="mb-4 text-[13.5px] text-[#837c6c]">
         {listings?.length ?? 0} active · click a listing to open its file
       </p>
+
+      <AddListingForm />
 
       <div className="grid gap-4 md:grid-cols-2">
         {(listings ?? []).map((listing, i) => {
