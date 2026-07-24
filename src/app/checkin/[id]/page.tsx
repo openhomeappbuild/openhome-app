@@ -1,26 +1,20 @@
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { CheckInForm } from "./checkin-form";
+import { formatNZDate, formatNZTime, isNZToday } from "@/lib/nz-time";
 
 function formatOpenHomeWindow(start: string | null, end: string | null) {
   if (!start || !end) return null;
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const today = new Date();
-  const isToday = startDate.toDateString() === today.toDateString();
-  const time = (d: Date) =>
-    d.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" }).replace(" ", "");
-  const day = isToday
+  const day = isNZToday(start)
     ? "today"
-    : startDate.toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
-  return `Open home ${day} ${time(startDate)}–${time(endDate)}`;
+    : formatNZDate(start, { weekday: "long", day: "numeric", month: "long" });
+  return `Open home ${day} ${formatNZTime(start)}–${formatNZTime(end)}`;
 }
 
 function formatSaleMethod(method: string | null, date: string | null) {
   if (!method) return null;
   if (!date) return method;
-  const d = new Date(date).toLocaleDateString("en-NZ", { day: "numeric", month: "short" });
-  return `${method} — ${d}`;
+  return `${method} — ${formatNZDate(date, { day: "numeric", month: "short" })}`;
 }
 
 export default async function CheckInPage({

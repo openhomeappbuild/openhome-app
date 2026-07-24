@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatNZDate, nzDayKey } from "@/lib/nz-time";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function ListingsPage() {
   for (const c of checkins ?? []) {
     const entry = statsByListing.get(c.listing_id) ?? { attendees: 0, openHomes: new Set<string>() };
     entry.attendees += 1;
-    entry.openHomes.add(new Date(c.created_at).toDateString());
+    entry.openHomes.add(nzDayKey(c.created_at));
     statsByListing.set(c.listing_id, entry);
   }
 
@@ -60,11 +61,7 @@ export default async function ListingsPage() {
                   <span>
                     {listing.sale_method}
                     {listing.sale_method_date
-                      ? ` — ${new Date(listing.sale_method_date).toLocaleDateString("en-NZ", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}`
+                      ? ` — ${formatNZDate(listing.sale_method_date, { day: "numeric", month: "short", year: "numeric" })}`
                       : ""}
                   </span>
                   <b>

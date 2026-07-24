@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { addOffer, uploadDocument, type ActionState } from "./actions";
 import { TIER_STYLES, type Tier } from "@/lib/tier";
+import { formatNZDate, formatNZDayKey, formatNZTime } from "@/lib/nz-time";
 
 type Listing = {
   id: string;
@@ -100,11 +101,7 @@ export function PropertyTabs({
         {listing.suburb}
         {listing.sale_method ? ` · ${listing.sale_method}` : ""}
         {listing.sale_method_date
-          ? ` closes ${new Date(listing.sale_method_date).toLocaleDateString("en-NZ", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}`
+          ? ` closes ${formatNZDate(listing.sale_method_date, { day: "numeric", month: "short", year: "numeric" })}`
           : ""}
       </p>
 
@@ -139,7 +136,7 @@ export function PropertyTabs({
                   {[...openHomeDays].reverse().map(({ day, attendees }) => (
                     <BarRow
                       key={day}
-                      label={new Date(day).toLocaleDateString("en-NZ", { weekday: "short", day: "numeric", month: "short" })}
+                      label={formatNZDayKey(day, { weekday: "short", day: "numeric", month: "short" })}
                       value={attendees.length}
                       max={Math.max(...openHomeDays.map((d) => d.attendees.length), 1)}
                     />
@@ -262,7 +259,7 @@ function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees
   const [latest, ...earlier] = openHomeDays;
   return (
     <div className="space-y-4">
-      <Panel title={`${new Date(latest.day).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" })} · ${latest.attendees.length} attendees`}>
+      <Panel title={`${formatNZDayKey(latest.day, { weekday: "long", day: "numeric", month: "long" })} · ${latest.attendees.length} attendees`}>
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-[#e2e7ed] text-left text-[11px] uppercase tracking-wide text-[#6b7787]">
@@ -290,7 +287,7 @@ function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees
                 return (
                   <tr key={day} className="border-b border-[#eef1f5] last:border-none">
                     <td className="py-2.5">
-                      <b>{new Date(day).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "short" })}</b>{" "}
+                      <b>{formatNZDayKey(day, { weekday: "long", day: "numeric", month: "short" })}</b>{" "}
                       · {attendees.length} attendees · {local} local
                     </td>
                   </tr>
@@ -367,7 +364,7 @@ function OffersTab({ listingId, offers }: { listingId: string; offers: Offer[] }
                 <td className="py-2.5 pr-2 font-bold">{o.amount ? `$${Number(o.amount).toLocaleString()}` : "—"}</td>
                 <td className="py-2.5 pr-2 text-[#43505e]">{o.conditions || "—"}</td>
                 <td className="py-2.5 pr-2 text-[#43505e]">
-                  {o.expiry ? new Date(o.expiry).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}
+                  {o.expiry ? `${formatNZDate(o.expiry, { day: "numeric", month: "short" })}, ${formatNZTime(o.expiry)}` : "—"}
                 </td>
                 <td className="py-2.5">
                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${OFFER_STATUS_STYLES[o.status]}`}>
@@ -427,7 +424,7 @@ function DocumentsTab({ listingId, documents }: { listingId: string; documents: 
               <div className="flex-1">
                 <b className="block text-[13.5px]">{doc.name}</b>
                 <span className="text-xs text-[#6b7787]">
-                  {meta.label} · {new Date(doc.created_at).toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" })}
+                  {meta.label} · {formatNZDate(doc.created_at, { day: "numeric", month: "short", year: "numeric" })}
                   {doc.size_bytes ? ` · ${Math.round(doc.size_bytes / 1024)} KB` : ""}
                 </span>
               </div>

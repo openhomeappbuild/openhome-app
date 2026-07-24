@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { formatNZDate, formatNZTime } from "@/lib/nz-time";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function DashboardHomePage() {
     <div>
       <h1 className="mb-1 text-[22px] font-bold">Good morning, Chris</h1>
       <p className="mb-6 text-[13.5px] text-[#6b7787]">
-        {new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        {formatNZDate(new Date(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       </p>
 
       <div className="mb-6 grid grid-cols-2 gap-3.5 md:grid-cols-4">
@@ -104,21 +105,8 @@ export default async function DashboardHomePage() {
                       <b>{l.address}</b>
                       <br />
                       <span className="text-[#6b7787]">
-                        {new Date(l.open_home_start!).toLocaleDateString("en-NZ", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                        })}
-                        ,{" "}
-                        {new Date(l.open_home_start!).toLocaleTimeString("en-NZ", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                        –
-                        {new Date(l.open_home_end!).toLocaleTimeString("en-NZ", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
+                        {formatNZDate(l.open_home_start!, { weekday: "short", day: "numeric", month: "short" })},{" "}
+                        {formatNZTime(l.open_home_start!)}–{formatNZTime(l.open_home_end!)}
                       </span>
                     </td>
                     <td className="py-2.5 text-right">

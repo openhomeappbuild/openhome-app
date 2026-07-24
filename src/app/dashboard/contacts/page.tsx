@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { computeTier, TIER_STYLES, type Tier } from "@/lib/tier";
+import { formatNZDate } from "@/lib/nz-time";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +121,7 @@ export default async function ContactsPage() {
                   </td>
                   <td className="py-2.5 pr-2 text-[#43505e]">{c.interest}</td>
                   <td className="py-2.5 text-[#43505e]">
-                    {new Date(c.addedAt).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}
+                    {formatNZDate(c.addedAt, { day: "numeric", month: "short" })}
                   </td>
                 </tr>
               ))}

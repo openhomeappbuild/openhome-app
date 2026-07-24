@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { computeTier, type Tier } from "@/lib/tier";
+import { nzDayKey } from "@/lib/nz-time";
 import { PropertyTabs } from "./property-tabs";
 
 type Checkin = {
@@ -65,12 +66,12 @@ export default async function PropertyFilePage({ params }: { params: Promise<{ i
 
   const dayMap = new Map<string, typeof attendeesWithTier>();
   for (const a of attendeesWithTier) {
-    const day = new Date(a.created_at).toDateString();
+    const day = nzDayKey(a.created_at);
     dayMap.set(day, [...(dayMap.get(day) ?? []), a]);
   }
   const openHomeDays = Array.from(dayMap.entries())
     .map(([day, attendees]) => ({ day, attendees }))
-    .sort((a, b) => new Date(b.day).getTime() - new Date(a.day).getTime());
+    .sort((a, b) => b.day.localeCompare(a.day));
 
   const documentsWithUrls = await Promise.all(
     (documents ?? []).map(async (doc) => {
