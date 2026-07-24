@@ -80,3 +80,29 @@ export async function uploadDocument(
   revalidatePath(`/dashboard/listings/${listingId}`);
   return { ok: true };
 }
+
+export async function updateVendorDetails(
+  listingId: string,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const vendorName = String(formData.get("vendor_name") ?? "").trim() || null;
+  const vendorEmail = String(formData.get("vendor_email") ?? "").trim() || null;
+  const descriptionNotes = String(formData.get("description_notes") ?? "").trim() || null;
+  const areaNotes = String(formData.get("area_notes") ?? "").trim() || null;
+
+  const { error } = await supabaseAdmin
+    .from("listings")
+    .update({
+      vendor_name: vendorName,
+      vendor_email: vendorEmail,
+      description_notes: descriptionNotes,
+      area_notes: areaNotes,
+    })
+    .eq("id", listingId);
+
+  if (error) return { ok: false, error: "Could not save details. Please try again." };
+
+  revalidatePath(`/dashboard/listings/${listingId}`);
+  return { ok: true };
+}

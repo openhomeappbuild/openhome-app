@@ -50,6 +50,8 @@ export async function addListing(
       sale_method_date: saleMethodDate,
       open_home_start: openHomeStartRaw ? nzWallTimeToUTC(openHomeStartRaw).toISOString() : null,
       open_home_end: openHomeEndRaw ? nzWallTimeToUTC(openHomeEndRaw).toISOString() : null,
+      vendor_name: String(formData.get("vendor_name") ?? "").trim() || null,
+      vendor_email: String(formData.get("vendor_email") ?? "").trim() || null,
     })
     .select("id")
     .single();

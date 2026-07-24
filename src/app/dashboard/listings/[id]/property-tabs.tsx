@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { addOffer, uploadDocument, type ActionState } from "./actions";
+import { addOffer, uploadDocument, updateVendorDetails, type ActionState } from "./actions";
+import { generateFollowupDrafts, generateSellerReportDraft, sendEmailBatch, type EmailActionState } from "./email-actions";
 import { TIER_STYLES, type Tier } from "@/lib/tier";
 import { formatNZDate, formatNZDayKey, formatNZTime } from "@/lib/nz-time";
 import { Stat, Panel, Empty, Pill } from "../../ui";
@@ -17,7 +18,14 @@ type Listing = {
   car_spaces: number | null;
   sale_method: string | null;
   sale_method_date: string | null;
+  vendor_name: string | null;
+  vendor_email: string | null;
+  description_notes: string | null;
+  area_notes: string | null;
 };
+
+type EmailBatchStatus = "none" | "draft" | "sent";
+type DayEmailStatus = { followup: EmailBatchStatus; seller_report: EmailBatchStatus };
 
 type Attendee = {
   id: string;
@@ -77,12 +85,14 @@ export function PropertyTabs({
   openHomeDays,
   offers,
   documents,
+  emailStatus,
 }: {
   listing: Listing;
   stats: { totalAttendees: number; localCount: number; consentCount: number; repeatCount: number; tierCounts: Record<Tier, number> };
   openHomeDays: { day: string; attendees: Attendee[] }[];
   offers: Offer[];
   documents: Document[];
+  emailStatus: Record<string, DayEmailStatus>;
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const localPct = stats.totalAttendees ? Math.round((stats.localCount / stats.totalAttendees) * 100) : 0;
@@ -167,12 +177,17 @@ export function PropertyTabs({
               </p>
             </Panel>
           </div>
+          <div className="mt-4">
+            <VendorDetailsPanel listing={listing} />
+          </div>
         </div>
       )}
 
       {tab === "Documents" && <DocumentsTab listingId={listing.id} documents={documents} />}
 
-      {tab === "Open homes" && <OpenHomesTab openHomeDays={openHomeDays} />}
+      {tab === "Open homes" && (
+        <OpenHomesTab listing={listing} openHomeDays={openHomeDays} emailStatus={emailStatus} />
+      )}
 
       {tab === "Offers" && <OffersTab listingId={listing.id} offers={offers} />}
     </div>
@@ -212,7 +227,15 @@ function AttendeeRow({ a }: { a: Attendee }) {
   );
 }
 
-function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees: Attendee[] }[] }) {
+function OpenHomesTab({
+  listing,
+  openHomeDays,
+  emailStatus,
+}: {
+  listing: Listing;
+  openHomeDays: { day: string; attendees: Attendee[] }[];
+  emailStatus: Record<string, DayEmailStatus>;
+}) {
   if (openHomeDays.length === 0) {
     return (
       <Panel title="Open homes">
@@ -223,8 +246,10 @@ function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees
   const [latest, ...earlier] = openHomeDays;
   return (
     <div className="space-y-4">
-      <Panel title={`${formatNZDayKey(latest.day, { weekday: "long", day: "numeric", month: "long" })} · ${latest.attendees.length} attendees`}>
-        <table className="w-full text-[13px]">
+      <Panel
+        title={`${formatNZDayKey(latest.day, { weekday: "long", day: "numeric", month: "long" })} · ${latest.attendees.length} attendees`}
+      >
+        <table className="mb-4 w-full text-[13px]">
           <thead>
             <tr className="border-b border-[#e7e2d4] text-left text-[11px] uppercase tracking-wide text-[#837c6c]">
               <th className="pb-2">Tier</th>
@@ -241,27 +266,185 @@ function OpenHomesTab({ openHomeDays }: { openHomeDays: { day: string; attendees
             ))}
           </tbody>
         </table>
+        <EmailBatchControls
+          listing={listing}
+          dayKey={latest.day}
+          status={emailStatus[latest.day] ?? { followup: "none", seller_report: "none" }}
+        />
       </Panel>
       {earlier.length > 0 && (
         <Panel title="Earlier open homes">
-          <table className="w-full text-[13px]">
-            <tbody>
-              {earlier.map(({ day, attendees }) => {
-                const local = attendees.filter((a) => a.is_local).length;
-                return (
-                  <tr key={day} className="border-b border-[#eef1f5] last:border-none">
-                    <td className="py-2.5">
-                      <b>{formatNZDayKey(day, { weekday: "long", day: "numeric", month: "short" })}</b>{" "}
-                      · {attendees.length} attendees · {local} local
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="space-y-4">
+            {earlier.map(({ day, attendees }) => {
+              const local = attendees.filter((a) => a.is_local).length;
+              return (
+                <div key={day} className="border-b border-[#eef1f5] pb-4 last:border-none last:pb-0">
+                  <p className="mb-2.5 text-[13px]">
+                    <b>{formatNZDayKey(day, { weekday: "long", day: "numeric", month: "short" })}</b> ·{" "}
+                    {attendees.length} attendees · {local} local
+                  </p>
+                  <EmailBatchControls
+                    listing={listing}
+                    dayKey={day}
+                    status={emailStatus[day] ?? { followup: "none", seller_report: "none" }}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </Panel>
       )}
     </div>
+  );
+}
+
+function batchLabel(status: EmailBatchStatus, base: string) {
+  if (status === "sent") return `${base} sent ✓`;
+  if (status === "draft") return `Review ${base.toLowerCase()} draft`;
+  return `Draft ${base.toLowerCase()}`;
+}
+
+function EmailBatchControls({
+  listing,
+  dayKey,
+  status,
+}: {
+  listing: Listing;
+  dayKey: string;
+  status: DayEmailStatus;
+}) {
+  const draftFollowup = generateFollowupDrafts.bind(null, listing.id, dayKey);
+  const draftSeller = generateSellerReportDraft.bind(null, listing.id, dayKey);
+  const [followupState, followupAction, followupPending] = useActionState<EmailActionState, FormData>(
+    draftFollowup,
+    {}
+  );
+  const [sellerState, sellerAction, sellerPending] = useActionState<EmailActionState, FormData>(draftSeller, {});
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#e7e2d4] bg-[#faf8f3] p-3">
+      <form action={followupAction}>
+        <button
+          disabled={followupPending || status.followup === "sent"}
+          className={`rounded border px-3 py-1.5 text-xs font-semibold ${
+            status.followup === "sent"
+              ? "border-[#e7e2d4] text-[#837c6c]"
+              : "border-[#14130f] text-[#14130f] hover:bg-[#14130f] hover:text-white"
+          }`}
+        >
+          {followupPending ? "Drafting…" : batchLabel(status.followup, "Follow-up emails")}
+        </button>
+      </form>
+      <form action={sellerAction}>
+        <button
+          disabled={sellerPending || status.seller_report === "sent"}
+          className={`rounded border px-3 py-1.5 text-xs font-semibold ${
+            status.seller_report === "sent"
+              ? "border-[#e7e2d4] text-[#837c6c]"
+              : "border-[#14130f] text-[#14130f] hover:bg-[#14130f] hover:text-white"
+          }`}
+        >
+          {sellerPending ? "Drafting…" : batchLabel(status.seller_report, "Seller report")}
+        </button>
+      </form>
+      {(status.followup === "draft" || status.seller_report === "draft") && (
+        <Link href="/dashboard/emails" className="text-xs font-semibold text-[#14130f] underline">
+          Review &amp; send in Emails
+        </Link>
+      )}
+      {(followupState.error || followupState.info) && (
+        <p className={`w-full text-xs ${followupState.error ? "text-[#b23b2e]" : "text-[#2f6f4e]"}`}>
+          {followupState.error ?? followupState.info}
+        </p>
+      )}
+      {(sellerState.error || sellerState.info) && (
+        <p className={`w-full text-xs ${sellerState.error ? "text-[#b23b2e]" : "text-[#2f6f4e]"}`}>
+          {sellerState.error ?? sellerState.info}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function VendorDetailsPanel({ listing }: { listing: Listing }) {
+  const [editing, setEditing] = useState(false);
+  const boundAction = updateVendorDetails.bind(null, listing.id);
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(boundAction, { ok: false });
+
+  if (!editing) {
+    return (
+      <Panel
+        title="Vendor & email content"
+        action={
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded border border-[#e7e2d4] px-3 py-1.5 text-xs font-semibold hover:border-[#14130f]"
+          >
+            Edit
+          </button>
+        }
+      >
+        <div className="grid gap-3 text-[13px] sm:grid-cols-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-[#837c6c]">Vendor</div>
+            <div>{listing.vendor_name || "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-[#837c6c]">Vendor email</div>
+            <div>{listing.vendor_email || "—"}</div>
+          </div>
+        </div>
+        {!listing.vendor_email && (
+          <p className="mt-3 text-xs text-[#a9761f]">
+            Add a vendor email to enable seller report drafts.
+          </p>
+        )}
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Vendor & email content">
+      <form
+        action={(fd) => {
+          formAction(fd);
+          setEditing(false);
+        }}
+        className="grid grid-cols-2 gap-3"
+      >
+        <input name="vendor_name" placeholder="Vendor name" defaultValue={listing.vendor_name ?? ""} className="field-input" />
+        <input
+          name="vendor_email"
+          type="email"
+          placeholder="Vendor email"
+          defaultValue={listing.vendor_email ?? ""}
+          className="field-input"
+        />
+        <textarea
+          name="description_notes"
+          placeholder="A few notes about the home (used in the follow-up email recap)"
+          defaultValue={listing.description_notes ?? ""}
+          rows={2}
+          className="field-input col-span-2"
+        />
+        <textarea
+          name="area_notes"
+          placeholder="A few notes about the area (used in the follow-up email)"
+          defaultValue={listing.area_notes ?? ""}
+          rows={2}
+          className="field-input col-span-2"
+        />
+        <div className="col-span-2 flex gap-2">
+          <button disabled={pending} className="rounded-lg bg-[#14130f] px-4 py-2 text-sm font-semibold text-white">
+            Save
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="text-sm font-semibold text-[#837c6c]">
+            Cancel
+          </button>
+        </div>
+        {state.error && <p className="col-span-2 text-sm text-[#b23b2e]">{state.error}</p>}
+      </form>
+    </Panel>
   );
 }
 

@@ -20,24 +20,26 @@ type Checkin = {
 export default async function PropertyFilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [{ data: listing }, { data: checkins }, { data: offers }, { data: documents }] = await Promise.all([
-    supabaseAdmin.from("listings").select("*").eq("id", id).single(),
-    supabaseAdmin
-      .from("checkins")
-      .select("*")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: true }),
-    supabaseAdmin
-      .from("offers")
-      .select("*")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: false }),
-    supabaseAdmin
-      .from("documents")
-      .select("*")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: listing }, { data: checkins }, { data: offers }, { data: documents }, { data: emailRows }] =
+    await Promise.all([
+      supabaseAdmin.from("listings").select("*").eq("id", id).single(),
+      supabaseAdmin
+        .from("checkins")
+        .select("*")
+        .eq("listing_id", id)
+        .order("created_at", { ascending: true }),
+      supabaseAdmin
+        .from("offers")
+        .select("*")
+        .eq("listing_id", id)
+        .order("created_at", { ascending: false }),
+      supabaseAdmin
+        .from("documents")
+        .select("*")
+        .eq("listing_id", id)
+        .order("created_at", { ascending: false }),
+      supabaseAdmin.from("emails").select("open_home_day, type, status").eq("listing_id", id),
+    ]);
 
   if (!listing) notFound();
 
@@ -82,6 +84,19 @@ export default async function PropertyFilePage({ params }: { params: Promise<{ i
     })
   );
 
+  type EmailBatchStatus = "none" | "draft" | "sent";
+  const emailStatus = new Map<string, { followup: EmailBatchStatus; seller_report: EmailBatchStatus }>();
+  for (const day of openHomeDays.map((d) => d.day)) {
+    emailStatus.set(day, { followup: "none", seller_report: "none" });
+  }
+  for (const row of emailRows ?? []) {
+    const entry = emailStatus.get(row.open_home_day) ?? { followup: "none", seller_report: "none" };
+    const key = row.type as "followup" | "seller_report";
+    if (row.status === "sent") entry[key] = "sent";
+    else if (row.status === "draft" && entry[key] !== "sent") entry[key] = "draft";
+    emailStatus.set(row.open_home_day, entry);
+  }
+
   return (
     <PropertyTabs
       listing={listing}
@@ -89,6 +104,7 @@ export default async function PropertyFilePage({ params }: { params: Promise<{ i
       openHomeDays={openHomeDays}
       offers={offers ?? []}
       documents={documentsWithUrls}
+      emailStatus={Object.fromEntries(emailStatus)}
     />
   );
 }

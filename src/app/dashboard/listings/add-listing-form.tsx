@@ -65,6 +65,9 @@ export function AddListingForm() {
           <label className="mb-1.5 block text-[12px] font-semibold text-[#524d40]">Ends</label>
           <input name="open_home_end" type="datetime-local" className="field-input" />
         </div>
+
+        <input name="vendor_name" placeholder="Vendor name (optional)" className="field-input" />
+        <input name="vendor_email" type="email" placeholder="Vendor email (optional)" className="field-input" />
       </div>
 
       {state.error && <p className="mt-3 text-sm text-[#b23b2e]">{state.error}</p>}
