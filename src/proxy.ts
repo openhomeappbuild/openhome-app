@@ -5,17 +5,12 @@ export function proxy(request: NextRequest) {
   const password = process.env.DASHBOARD_PASSWORD;
   if (!password) return NextResponse.next();
 
-  const auth = request.headers.get("authorization");
-  if (auth) {
-    const [, encoded] = auth.split(" ");
-    const [, suppliedPassword] = Buffer.from(encoded, "base64").toString().split(":");
-    if (suppliedPassword === password) return NextResponse.next();
-  }
+  const cookie = request.cookies.get("dash_auth");
+  if (cookie?.value === password) return NextResponse.next();
 
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Agent dashboard"' },
-  });
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("next", request.nextUrl.pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
