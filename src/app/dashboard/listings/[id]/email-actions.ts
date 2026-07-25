@@ -175,13 +175,16 @@ export async function sendEmailBatch(
     return { error: "Email sending isn't configured yet — add RESEND_API_KEY to enable sending." };
   }
 
+  const appUrl = await getAppUrl();
+
   let sent = 0;
   for (const draft of drafts) {
+    const pixel = `<img src="${appUrl}/api/track/${draft.id}" width="1" height="1" alt="" style="display:block;border:0;" />`;
     const { error } = await resend.emails.send({
       from: EMAIL_FROM,
       to: draft.recipient_email,
       subject: draft.subject,
-      html: draft.body_html,
+      html: draft.body_html + pixel,
     });
     if (error) {
       await supabaseAdmin.from("emails").update({ status: "failed", error: error.message }).eq("id", draft.id);

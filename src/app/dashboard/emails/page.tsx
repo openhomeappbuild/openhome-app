@@ -85,39 +85,66 @@ export default async function EmailsPage() {
           {sentBatches.length === 0 ? (
             <Empty text="Nothing sent yet." />
           ) : (
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-[#e7e2d4] text-left text-[11px] uppercase tracking-wide text-[#837c6c]">
-                  <th className="pb-2">Type</th>
-                  <th className="pb-2">Listing</th>
-                  <th className="pb-2">Open home</th>
-                  <th className="pb-2">Recipients</th>
-                  <th className="pb-2">Sent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sentBatches.map(({ key, rows }) => {
-                  const [listingId, dayKey, type] = key.split("::");
-                  const sentCount = rows.filter((r) => r.status === "sent").length;
-                  const failedCount = rows.filter((r) => r.status === "failed").length;
-                  const sentAt = rows.find((r) => r.sent_at)?.sent_at;
-                  return (
-                    <tr key={key} className="border-b border-[#eef1f5] last:border-none">
-                      <td className="py-2.5 pr-2">{TYPE_LABEL[type] ?? type}</td>
-                      <td className="py-2.5 pr-2">{listingAddress.get(listingId) ?? "—"}</td>
-                      <td className="py-2.5 pr-2">{formatNZDayKey(dayKey, { day: "numeric", month: "short" })}</td>
-                      <td className="py-2.5 pr-2">
-                        {sentCount} sent{failedCount ? `, ${failedCount} failed` : ""}
-                      </td>
-                      <td className="py-2.5 text-[#837c6c]">
+            <div className="divide-y divide-[#eef1f5]">
+              {sentBatches.map(({ key, rows }) => {
+                const [listingId, dayKey, type] = key.split("::");
+                const sentRows = rows.filter((r) => r.status === "sent");
+                const failedCount = rows.filter((r) => r.status === "failed").length;
+                const openedCount = sentRows.filter((r) => r.opened_at).length;
+                const sentAt = rows.find((r) => r.sent_at)?.sent_at;
+                const openRate = sentRows.length ? Math.round((openedCount / sentRows.length) * 100) : 0;
+
+                return (
+                  <details key={key} className="group py-3">
+                    <summary className="flex cursor-pointer list-none items-center gap-3 text-[13px] [&::-webkit-details-marker]:hidden">
+                      <span className="text-[#837c6c] transition-transform group-open:rotate-90">▸</span>
+                      <b className="w-[130px] flex-shrink-0">{TYPE_LABEL[type] ?? type}</b>
+                      <span className="flex-1 text-[#524d40]">
+                        {listingAddress.get(listingId) ?? "—"} ·{" "}
+                        {formatNZDayKey(dayKey, { day: "numeric", month: "short" })}
+                      </span>
+                      <span className="text-[#524d40]">
+                        {sentRows.length} sent{failedCount ? `, ${failedCount} failed` : ""}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${openedCount > 0 ? "bg-[#e7f0ea] text-[#2f6f4e]" : "bg-[#f3f1ea] text-[#837c6c]"}`}>
+                        {openedCount}/{sentRows.length} opened ({openRate}%)
+                      </span>
+                      <span className="w-[70px] flex-shrink-0 text-right text-xs text-[#837c6c]">
                         {sentAt ? new Date(sentAt).toLocaleDateString("en-NZ", { day: "numeric", month: "short" }) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </span>
+                    </summary>
+                    <table className="mt-3 w-full text-[12.5px]">
+                      <thead>
+                        <tr className="border-b border-[#e7e2d4] text-left text-[10.5px] uppercase tracking-wide text-[#837c6c]">
+                          <th className="pb-1.5 pl-6">Recipient</th>
+                          <th className="pb-1.5">Status</th>
+                          <th className="pb-1.5">Opened</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr key={r.id} className="border-b border-[#f3f1ea] last:border-none">
+                            <td className="py-1.5 pl-6">{r.recipient_name ?? r.recipient_email}</td>
+                            <td className="py-1.5 capitalize text-[#524d40]">{r.status}</td>
+                            <td className="py-1.5 text-[#524d40]">
+                              {r.opened_at
+                                ? `${new Date(r.opened_at).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}${r.open_count > 1 ? ` (${r.open_count}×)` : ""}`
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                );
+              })}
+            </div>
           )}
+          <p className="mt-4 text-xs text-[#837c6c]">
+            Opens are measured with a tracking pixel, so they're a useful signal rather than an exact count — some
+            mail apps (notably Apple Mail) pre-load images for every message regardless of whether it was actually
+            read, which inflates opens, and opens can under-count when images are blocked.
+          </p>
         </Panel>
       </div>
     </div>
