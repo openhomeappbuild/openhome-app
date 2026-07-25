@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   uploadComparablesCsv,
@@ -10,8 +10,8 @@ import {
   updateAppraisalSubject,
   type ActionState,
 } from "./actions";
-import { estimateRange, type Grade } from "@/lib/valuation";
-import { Panel, Stat, Empty } from "../../ui";
+import { estimateRange, defaultValuationInputs, type Grade } from "@/lib/valuation";
+import { Panel, Stat, Empty, Pill } from "../../ui";
 
 type Appraisal = {
   id: string;
@@ -83,6 +83,10 @@ export function AppraisalView({ appraisal, comparables }: { appraisal: Appraisal
         <Stat n={range ? money(range.high) : "—"} l="On a good day" />
         <Stat n={range?.count ?? 0} l="Comparables included" />
         <Stat n={appraisal.capital_value ? money(appraisal.capital_value) : "—"} l="Capital value (CV)" />
+      </div>
+
+      <div className="mt-4">
+        <ValuationPanel appraisal={appraisal} comparables={comparables} />
       </div>
 
       <div className="mt-4">
@@ -354,6 +358,211 @@ function ComparablesPanel({ appraisalId, comparables }: { appraisalId: string; c
       <p className="mt-3 text-xs text-[#837c6c]">
         Grades and inclusion are auto-suggested (sales far below CV are auto-excluded as likely non-market) — you
         have the final say on every one before anything goes to a vendor.
+      </p>
+    </Panel>
+  );
+}
+
+function Slider({
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="mb-3">
+      <label className="mb-1 flex items-baseline justify-between text-[11.5px] font-semibold text-[#524d40]">
+        <span>{label}</span>
+        <span className="text-[13px] font-bold text-[#14130f]">{display}</span>
+      </label>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-[#14130f]"
+      />
+    </div>
+  );
+}
+
+function MethodCard({
+  title,
+  badge,
+  explainer,
+  children,
+  formula,
+  value,
+  wide,
+}: {
+  title: string;
+  badge: string;
+  explainer: string;
+  children: React.ReactNode;
+  formula: string;
+  value: number;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col rounded-lg border border-[#e7e2d4] p-4 ${wide ? "sm:col-span-2" : ""}`}>
+      <div className="mb-1.5 flex items-center gap-2">
+        <b className="text-[13.5px]">{title}</b>
+        <span className="rounded-full bg-[#f3f1ea] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#837c6c]">
+          {badge}
+        </span>
+      </div>
+      <p className="mb-3 text-[11.5px] leading-relaxed text-[#837c6c]">{explainer}</p>
+      {children}
+      <div className="mt-auto flex items-baseline justify-between border-t border-[#e7e2d4] pt-2.5">
+        <span className="text-[10.5px] uppercase tracking-wide text-[#837c6c]">{formula}</span>
+        <span className="text-[19px] font-bold tabular-nums">{money(Math.round(value))}</span>
+      </div>
+    </div>
+  );
+}
+
+function ValuationPanel({ appraisal, comparables }: { appraisal: Appraisal; comparables: Comparable[] }) {
+  const defaults = useMemo(() => defaultValuationInputs(appraisal, comparables), [appraisal, comparables]);
+  const [comparisonValue, setComparisonValue] = useState(defaults.comparisonValue);
+  const [weeklyRent, setWeeklyRent] = useState(defaults.weeklyRent);
+  const [grossYield, setGrossYield] = useState(defaults.grossYield);
+  const [cvRatio, setCvRatio] = useState(defaults.cvRatio);
+  const [ratePerM2, setRatePerM2] = useState(defaults.ratePerM2);
+  const [landValue, setLandValue] = useState(defaults.landValue);
+  const [buildCostPerM2, setBuildCostPerM2] = useState(defaults.buildCostPerM2);
+  const [depreciation, setDepreciation] = useState(defaults.depreciation);
+
+  const floorArea = appraisal.floor_area_m2 ?? 0;
+  const capitalValue = appraisal.capital_value ?? 0;
+
+  const vComparison = comparisonValue;
+  const vIncome = (weeklyRent * 52) / (grossYield / 100);
+  const vCvIndex = capitalValue * (cvRatio / 100);
+  const vRate = floorArea * ratePerM2;
+  const vSummation = landValue + floorArea * buildCostPerM2 * (1 - depreciation / 100);
+
+  const methods = [
+    { label: "Direct comparison", value: vComparison },
+    { label: "Income approach", value: vIncome },
+    { label: "CV-index", value: vCvIndex },
+    { label: "Rate per m²", value: vRate },
+    { label: "Summation (cost)", value: vSummation },
+  ].filter((m) => m.value > 0);
+
+  const weighted =
+    methods.reduce((sum, m) => {
+      const weight = m.label === "Direct comparison" ? 0.4 : 0.15;
+      return sum + m.value * weight;
+    }, 0) / (methods.reduce((s, m) => s + (m.label === "Direct comparison" ? 0.4 : 0.15), 0) || 1);
+
+  const vals = methods.map((m) => m.value);
+  const lo = vals.length ? Math.min(...vals) : 0;
+  const hi = vals.length ? Math.max(...vals) : 0;
+  const med = vals.length ? [...vals].sort((a, b) => a - b)[Math.floor(vals.length / 2)] : 0;
+  const spread = med ? ((hi - lo) / med) * 100 : 0;
+
+  const convergence =
+    spread <= 10
+      ? { tone: "green" as const, label: "Strong — methods agree", text: "All methods sit within ~10% of each other. The reconciled figure is well supported — present the range to the vendor with confidence." }
+      : spread <= 20
+        ? { tone: "amber" as const, label: "Moderate — one outlier", text: "Most methods agree but at least one diverges. Check its assumptions — the outlier usually reveals something, like replacement cost exceeding market, or rent lagging price." }
+        : { tone: "red" as const, label: "Weak — methods disagree", text: "The methods disagree materially. Revisit the assumptions before quoting a range — this property may be unusual for its area." };
+
+  const axMin = Math.min(lo, capitalValue || lo) * 0.95;
+  const axMax = Math.max(hi, capitalValue || hi) * 1.05;
+  const axSpan = axMax - axMin || 1;
+
+  return (
+    <Panel title="Multi-method valuation">
+      <p className="mb-4 text-[12.5px] leading-relaxed text-[#837c6c]">
+        Five independent readings on the same property, seeded from the subject facts and included comparables
+        above. Adjust any assumption — the reconciliation and confidence rating update live. This is a cross-check
+        tool; it doesn&apos;t change the comparables range shown above or in the proposal.
+      </p>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <MethodCard title="1 · Direct comparison" badge="Primary" value={vComparison} formula="Adjusted midpoint" explainer="What similar properties actually sold for, adjusted for differences. The market's own verdict — carries the most weight for standard homes.">
+          <Slider label="Adjusted midpoint from comparables" value={comparisonValue} display={money(comparisonValue)} min={Math.round((comparisonValue * 0.8) / 1000) * 1000} max={Math.round((comparisonValue * 1.2) / 1000) * 1000} step={5000} onChange={setComparisonValue} />
+        </MethodCard>
+
+        <MethodCard title="2 · Income approach" badge="Investor lens" value={vIncome} formula="Rent × 52 ÷ yield" explainer="Value from rental return: annual rent divided by the yield buyers expect. Most relevant for properties with strong rental demand.">
+          <Slider label="Weekly rent" value={weeklyRent} display={`$${weeklyRent.toLocaleString("en-NZ")}`} min={Math.max(Math.round((weeklyRent * 0.7) / 25) * 25, 100)} max={Math.round((weeklyRent * 1.3) / 25) * 25} step={25} onChange={setWeeklyRent} />
+          <Slider label="Gross yield buyers accept" value={grossYield} display={`${grossYield.toFixed(1)}%`} min={3} max={8} step={0.1} onChange={setGrossYield} />
+        </MethodCard>
+
+        <MethodCard title="3 · CV-index" badge="Cross-check" value={vCvIndex} formula="CV × ratio" explainer="Recent local sales achieved a ratio to their rating (CV) values; apply that ratio to the subject's CV. Crude but fully automatic — a good outlier detector.">
+          <Slider label="Local sales-to-CV ratio" value={cvRatio} display={`${cvRatio}%`} min={80} max={130} step={1} onChange={setCvRatio} />
+        </MethodCard>
+
+        <MethodCard title="4 · Rate per m²" badge="Cross-check" value={vRate} formula={`${floorArea || "—"}m² × rate`} explainer="Comparable sale prices per square metre of floor area, applied to the subject. Shows whether size alone explains the price.">
+          <Slider label="Rate per m² of floor area" value={ratePerM2} display={`$${ratePerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((ratePerM2 * 0.7) / 50) * 50, 500)} max={Math.round((ratePerM2 * 1.3) / 50) * 50} step={50} onChange={setRatePerM2} />
+        </MethodCard>
+
+        <MethodCard title="5 · Summation (cost)" badge="Upper anchor" value={vSummation} formula="Land + build − depreciation" explainer="Land value plus the depreciated replacement cost of the buildings. Typically sets a ceiling — when buying is cheaper than building, value at the top of the range is supported." wide>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Slider label="Land value" value={landValue} display={money(landValue)} min={Math.round((landValue * 0.7) / 10000) * 10000} max={Math.round((landValue * 1.3) / 10000) * 10000} step={10000} onChange={setLandValue} />
+            <Slider label="Build cost per m²" value={buildCostPerM2} display={`$${buildCostPerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((buildCostPerM2 * 0.6) / 50) * 50, 500)} max={Math.round((buildCostPerM2 * 1.4) / 50) * 50} step={50} onChange={setBuildCostPerM2} />
+            <Slider label="Depreciation" value={depreciation} display={`${depreciation}%`} min={0} max={40} step={1} onChange={setDepreciation} />
+          </div>
+        </MethodCard>
+      </div>
+
+      <h4 className="font-display mt-5 mb-2.5 text-[13.5px] font-semibold">Reconciliation</h4>
+      <div className="space-y-2">
+        {methods.map((m) => {
+          const left = ((m.value - axMin) / axSpan) * 100;
+          return (
+            <div key={m.label} className="flex items-center gap-3">
+              <span className="w-[140px] flex-shrink-0 text-[11.5px] font-semibold text-[#524d40]">{m.label}</span>
+              <div className="relative h-4 flex-1 overflow-hidden rounded bg-[#f3f1ea]">
+                <div className="absolute inset-y-0 left-0 rounded bg-[#14130f] opacity-80" style={{ width: `${Math.max(0, Math.min(100, left))}%` }} />
+              </div>
+              <span className="w-[92px] flex-shrink-0 text-right text-[12px] font-bold tabular-nums">{money(Math.round(m.value))}</span>
+            </div>
+          );
+        })}
+      </div>
+      {vals.length > 0 && (
+        <p className="mt-2 text-[11.5px] text-[#837c6c]">
+          Methods span {money(Math.round(lo))} – {money(Math.round(hi))} (spread {spread.toFixed(0)}% of the median).
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <div className="min-w-[220px] flex-1 rounded-lg border-2 border-[#14130f] p-4 text-center">
+          <div className="text-[10.5px] uppercase tracking-wide text-[#837c6c]">Reconciled estimate</div>
+          <div className="font-display mt-1 text-[26px] font-bold">{vals.length ? money(Math.round(weighted)) : "—"}</div>
+          <div className="mt-1 text-[11px] text-[#837c6c]">Weighted: comparison 40% · other four methods 15% each</div>
+        </div>
+        <div className="min-w-[220px] flex-1 rounded-lg border border-[#e7e2d4] p-4">
+          <div className="mb-1.5 text-[10.5px] uppercase tracking-wide text-[#837c6c]">Convergence check</div>
+          {vals.length > 0 ? (
+            <>
+              <Pill tone={convergence.tone}>{convergence.label}</Pill>
+              <p className="mt-2 text-[11.5px] leading-relaxed text-[#837c6c]">{convergence.text}</p>
+            </>
+          ) : (
+            <p className="text-[11.5px] text-[#837c6c]">Add subject facts and at least one comparable to see a reading here.</p>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-4 text-[11.5px] leading-relaxed text-[#837c6c]">
+        Method values are indicative tools for an agent&apos;s appraisal — this is not a registered valuation, and
+        any figure presented to a vendor remains the agent&apos;s professional judgment.
       </p>
     </Panel>
   );

@@ -42,3 +42,71 @@ export function estimateRange(comps: { indicated_value: number; included: boolea
     count: included.length,
   };
 }
+
+function median(nums: number[]): number | null {
+  if (nums.length === 0) return null;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+type ComparableForDefaults = {
+  included: boolean;
+  sale_price: number;
+  capital_value: number | null;
+  floor_area_m2: number | null;
+  indicated_value: number;
+};
+
+/**
+ * Seeds starting values for the five valuation methods from the appraisal's
+ * own subject facts and included comparables, so the agent adjusts real
+ * numbers rather than typing a valuation from scratch. Falls back to broad
+ * NZ-typical defaults only where the appraisal has no data at all for that
+ * input, so the sliders never sit on zero.
+ */
+export function defaultValuationInputs(
+  appraisal: {
+    capital_value: number | null;
+    land_value: number | null;
+    improvements_value: number | null;
+    floor_area_m2: number | null;
+  },
+  comparables: ComparableForDefaults[]
+) {
+  const included = comparables.filter((c) => c.included);
+
+  const comparisonValue =
+    median(included.map((c) => c.indicated_value)) ?? appraisal.capital_value ?? 800000;
+
+  const cvRatios = included
+    .filter((c) => c.capital_value)
+    .map((c) => (c.sale_price / (c.capital_value as number)) * 100);
+  const cvRatio = Math.round(median(cvRatios) ?? 100);
+
+  const ratesPerM2 = included
+    .filter((c) => c.floor_area_m2)
+    .map((c) => c.sale_price / (c.floor_area_m2 as number));
+  const ratePerM2 =
+    Math.round((median(ratesPerM2) ?? (appraisal.capital_value && appraisal.floor_area_m2 ? appraisal.capital_value / appraisal.floor_area_m2 : 4500)) / 50) * 50;
+
+  const weeklyRent = Math.round(((comparisonValue * 0.045) / 52) / 25) * 25;
+
+  const landValue = appraisal.land_value ?? Math.round(comparisonValue * 0.4);
+
+  const buildCostPerM2 =
+    appraisal.improvements_value && appraisal.floor_area_m2
+      ? Math.round(appraisal.improvements_value / appraisal.floor_area_m2 / 50) * 50
+      : 2800;
+
+  return {
+    comparisonValue: Math.round(comparisonValue / 1000) * 1000,
+    weeklyRent: Math.max(weeklyRent, 300),
+    grossYield: 5,
+    cvRatio: Math.min(Math.max(cvRatio, 80), 130),
+    ratePerM2,
+    landValue: Math.round(landValue / 1000) * 1000,
+    buildCostPerM2,
+    depreciation: 10,
+  };
+}
