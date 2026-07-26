@@ -33,7 +33,12 @@ export function NewAppraisalForm() {
           <label className="mb-1.5 block text-[12px] font-semibold text-[#524d40]">
             Comparable sales CSV (optional — Prover / Property Guru / REINZ export)
           </label>
-          <input name="file" type="file" accept=".csv,text/csv" className="text-sm" />
+          <input
+            name="file"
+            type="file"
+            accept=".csv,text/csv"
+            className="block w-full cursor-pointer text-sm text-[#524d40] file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#14130f] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#2a281f]"
+          />
           <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#837c6c]">
             If the subject's own sale is in this file (it usually is — the export is centred on it), its floor
             area, land area, capital value and last sale get filled in automatically before any comparable is

@@ -334,7 +334,13 @@ function ComparablesPanel({ appraisalId, comparables }: { appraisalId: string; c
             . Needs at least Address and Sale Price columns.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <input name="file" type="file" accept=".csv,text/csv" required className="text-sm" />
+            <input
+              name="file"
+              type="file"
+              accept=".csv,text/csv"
+              required
+              className="cursor-pointer text-sm text-[#524d40] file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#14130f] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#2a281f]"
+            />
             <button disabled={csvPending} className="rounded-lg bg-[#14130f] px-4 py-2 text-sm font-semibold text-white">
               {csvPending ? "Importing…" : "Import"}
             </button>
