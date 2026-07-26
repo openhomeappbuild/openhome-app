@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { parseCsv } from "@/lib/csv";
-import { suggestGrade, flagIfNonMarket, flagIfSizeMismatch, computeIndicatedValue } from "@/lib/valuation";
+import { suggestGrade, flagIfNonMarket, flagIfSizeMismatch, flagOutliersByIndicatedValue, computeIndicatedValue } from "@/lib/valuation";
 
 export type ActionState = { ok: boolean; error?: string; info?: string };
 
@@ -66,22 +66,15 @@ function parseSaleDate(raw: string | undefined): string | null {
   return `${m[3]}-${month}-${m[1].padStart(2, "0")}`;
 }
 
-async function getSubjectCapitalValue(appraisalId: string): Promise<number | null> {
-  const { data } = await supabaseAdmin
-    .from("appraisals")
-    .select("capital_value, floor_area_m2")
-    .eq("id", appraisalId)
-    .single();
-  return data?.capital_value ?? null;
-}
-
-export async function uploadComparablesCsv(
-  appraisalId: string,
-  _prevState: ActionState,
-  formData: FormData
-): Promise<ActionState> {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
+/**
+ * Shared by the comparables panel's own upload form and by the "new
+ * appraisal" flow, which now imports the CSV as part of creating the
+ * appraisal so the subject gets fully filled in (see the self-fill block
+ * below) before any comparable is graded against it — grading and the
+ * CV-index method are both meaningless without that.
+ */
+export async function runCsvImport(appraisalId: string, file: File): Promise<ActionState> {
+  if (file.size === 0) {
     return { ok: false, error: "Please choose a CSV file first." };
   }
 
@@ -206,7 +199,15 @@ export async function uploadComparablesCsv(
         grade: suggestGrade(subject?.floor_area_m2 ?? null, floorArea),
         included: !flaggedReason,
         flagged_reason: flaggedReason,
-        indicated_value: computeIndicatedValue(salePrice, capitalValue, subject?.capital_value ?? null),
+        indicated_value: computeIndicatedValue({
+          salePrice,
+          compCapitalValue: capitalValue,
+          subjectCapitalValue: subject?.capital_value ?? null,
+          compFloorAreaM2: floorArea,
+          subjectFloorAreaM2: subject?.floor_area_m2 ?? null,
+          compLandAreaM2: landArea,
+          subjectLandAreaM2: subject?.land_area_m2 ?? null,
+        }),
       };
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -215,13 +216,25 @@ export async function uploadComparablesCsv(
     return { ok: false, error: "No usable rows found — check the file matches the expected columns." };
   }
 
-  const { error } = await supabaseAdmin.from("appraisal_comparables").insert(rowsToInsert);
+  const finalRows = flagOutliersByIndicatedValue(rowsToInsert);
+
+  const { error } = await supabaseAdmin.from("appraisal_comparables").insert(finalRows);
   if (error) return { ok: false, error: "Could not save comparables. Please try again." };
 
   revalidatePath(`/dashboard/appraisals/${appraisalId}`);
-  const base = `Imported ${rowsToInsert.length} comparable${rowsToInsert.length === 1 ? "" : "s"}.`;
+  const base = `Imported ${finalRows.length} comparable${finalRows.length === 1 ? "" : "s"}.`;
   const info = filledFields.length > 0 ? `${base} Also filled in the subject's ${filledFields.join(", ")} from the CSV.` : base;
   return { ok: true, info };
+}
+
+export async function uploadComparablesCsv(
+  appraisalId: string,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "Please choose a CSV file first." };
+  return runCsvImport(appraisalId, file);
 }
 
 export async function addComparableManual(
@@ -237,10 +250,9 @@ export async function addComparableManual(
   const floorArea = Number(formData.get("floor_area_m2")) || null;
   const landArea = Number(formData.get("land_area_m2")) || null;
   const capitalValue = Number(formData.get("capital_value")) || null;
-  const subjectCv = await getSubjectCapitalValue(appraisalId);
   const { data: subject } = await supabaseAdmin
     .from("appraisals")
-    .select("floor_area_m2, land_area_m2")
+    .select("floor_area_m2, land_area_m2, capital_value")
     .eq("id", appraisalId)
     .single();
 
@@ -259,7 +271,15 @@ export async function addComparableManual(
     grade: suggestGrade(subject?.floor_area_m2 ?? null, floorArea),
     included: !flagged,
     flagged_reason: flagged,
-    indicated_value: computeIndicatedValue(salePrice, capitalValue, subjectCv),
+    indicated_value: computeIndicatedValue({
+      salePrice,
+      compCapitalValue: capitalValue,
+      subjectCapitalValue: subject?.capital_value ?? null,
+      compFloorAreaM2: floorArea,
+      subjectFloorAreaM2: subject?.floor_area_m2 ?? null,
+      compLandAreaM2: landArea,
+      subjectLandAreaM2: subject?.land_area_m2 ?? null,
+    }),
   });
 
   if (error) return { ok: false, error: "Could not save the comparable. Please try again." };
