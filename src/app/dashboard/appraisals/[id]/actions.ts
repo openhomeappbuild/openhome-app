@@ -114,10 +114,55 @@ export async function uploadComparablesCsv(
 
   const { data: subject } = await supabaseAdmin
     .from("appraisals")
-    .select("address, capital_value, floor_area_m2")
+    .select("address, suburb, capital_value, floor_area_m2, land_area_m2, last_sold_date, last_sold_price")
     .eq("id", appraisalId)
     .single();
   const subjectAddressNorm = normalizeHeader(subject?.address ?? "");
+
+  // Prover's "nearby sales" search is centred on the subject, so it's
+  // typically the first result. If it's there, use its own figures to fill
+  // in whatever subject fields the agent hasn't already entered by hand,
+  // rather than making them re-type numbers the export already has.
+  const filledFields: string[] = [];
+  if (subject && dataRows[0] && normalizeHeader(dataRows[0][col.address]?.trim() ?? "") === subjectAddressNorm) {
+    const first = dataRows[0];
+    const subjectUpdate: Record<string, string | number> = {};
+
+    const cv = col.capitalValue !== -1 ? parseNum(first[col.capitalValue]) : null;
+    if (subject.capital_value == null && cv != null) {
+      subjectUpdate.capital_value = cv;
+      filledFields.push("capital value");
+    }
+    const floorArea = col.floorArea !== -1 ? parseNum(first[col.floorArea]) : null;
+    if (subject.floor_area_m2 == null && floorArea != null && floorArea > 0) {
+      subjectUpdate.floor_area_m2 = floorArea;
+      filledFields.push("floor area");
+    }
+    const landArea = col.landArea !== -1 ? parseNum(first[col.landArea]) : null;
+    if (subject.land_area_m2 == null && landArea != null) {
+      subjectUpdate.land_area_m2 = landArea;
+      filledFields.push("land area");
+    }
+    const lastSoldDate = col.saleDate !== -1 ? parseSaleDate(first[col.saleDate]) : null;
+    if (subject.last_sold_date == null && lastSoldDate) {
+      subjectUpdate.last_sold_date = lastSoldDate;
+      filledFields.push("last sold date");
+    }
+    const lastSoldPrice = col.salePrice !== -1 ? parseNum(first[col.salePrice]) : null;
+    if (subject.last_sold_price == null && lastSoldPrice != null) {
+      subjectUpdate.last_sold_price = lastSoldPrice;
+      filledFields.push("last sold price");
+    }
+    if (!subject.suburb && col.suburb !== -1 && first[col.suburb]?.trim()) {
+      subjectUpdate.suburb = first[col.suburb].trim();
+      filledFields.push("suburb");
+    }
+
+    if (Object.keys(subjectUpdate).length > 0) {
+      await supabaseAdmin.from("appraisals").update(subjectUpdate).eq("id", appraisalId);
+      Object.assign(subject, subjectUpdate);
+    }
+  }
 
   const rowsToInsert = dataRows
     .map((r) => {
@@ -172,7 +217,9 @@ export async function uploadComparablesCsv(
   if (error) return { ok: false, error: "Could not save comparables. Please try again." };
 
   revalidatePath(`/dashboard/appraisals/${appraisalId}`);
-  return { ok: true, info: `Imported ${rowsToInsert.length} comparable${rowsToInsert.length === 1 ? "" : "s"}.` };
+  const base = `Imported ${rowsToInsert.length} comparable${rowsToInsert.length === 1 ? "" : "s"}.`;
+  const info = filledFields.length > 0 ? `${base} Also filled in the subject's ${filledFields.join(", ")} from the CSV.` : base;
+  return { ok: true, info };
 }
 
 export async function addComparableManual(
