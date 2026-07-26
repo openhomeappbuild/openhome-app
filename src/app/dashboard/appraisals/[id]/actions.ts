@@ -13,13 +13,15 @@ function normalizeHeader(h: string) {
 
 const HEADER_ALIASES: Record<string, string[]> = {
   address: ["address"],
-  saleDate: ["saledate", "date", "solddate"],
+  suburb: ["suburb"],
+  saleDate: ["saledate", "date", "solddate", "lastsaledate"],
   floorArea: ["floorarea", "floorm2", "floor", "floorareamm2", "floorareasqm"],
   landArea: ["landarea", "landm2", "land", "landareasqm"],
   bedrooms: ["bedrooms", "beds", "bed"],
-  salePrice: ["saleprice", "price"],
+  salePrice: ["saleprice", "price", "lastsaleprice"],
   capitalValue: ["capitalvalue", "cv", "rv", "ratingvalue"],
   currentListing: ["currentlisting", "listing", "onmarket"],
+  landUse: ["landuse", "propertytype", "use"],
 };
 
 function findColumn(headers: string[], field: string): number {
@@ -30,6 +32,38 @@ function findColumn(headers: string[], field: string): number {
     if (idx !== -1) return idx;
   }
   return -1;
+}
+
+/** Turns "" / "n/a" / garbage into null but keeps a real 0 (e.g. a vacant section has 0m² of floor area). */
+function parseNum(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const cleaned = raw.replace(/[^0-9.-]/g, "").trim();
+  if (cleaned === "" || cleaned === "-") return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+const MONTHS: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+};
+
+/**
+ * Prover exports dates as "12 Jun 2020". Parsed directly from the string
+ * rather than via `new Date(...)`, because `Date.parse` reads that format
+ * as local midnight and `toISOString()` then converts it to UTC — shifting
+ * the day by one depending on the server's timezone offset (the same class
+ * of bug documented for open-home times; see nz-time.ts).
+ */
+function parseSaleDate(raw: string | undefined): string | null {
+  const s = raw?.trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!m) return null;
+  const month = MONTHS[m[2].slice(0, 3).toLowerCase()];
+  if (!month) return null;
+  return `${m[3]}-${month}-${m[1].padStart(2, "0")}`;
 }
 
 async function getSubjectCapitalValue(appraisalId: string): Promise<number | null> {
@@ -51,13 +85,16 @@ export async function uploadComparablesCsv(
     return { ok: false, error: "Please choose a CSV file first." };
   }
 
-  const text = await file.text();
+  // Excel-exported CSVs (Prover's included) often start with a "sep=,"
+  // hint line and/or a UTF-8 BOM — neither is a data row.
+  const text = (await file.text()).replace(/^﻿/, "").replace(/^sep=.*\r?\n/i, "");
   const rows = parseCsv(text);
   if (rows.length < 2) return { ok: false, error: "That file doesn't look like a CSV with a header row." };
 
   const [header, ...dataRows] = rows;
   const col = {
     address: findColumn(header, "address"),
+    suburb: findColumn(header, "suburb"),
     saleDate: findColumn(header, "saleDate"),
     floorArea: findColumn(header, "floorArea"),
     landArea: findColumn(header, "landArea"),
@@ -65,6 +102,7 @@ export async function uploadComparablesCsv(
     salePrice: findColumn(header, "salePrice"),
     capitalValue: findColumn(header, "capitalValue"),
     currentListing: findColumn(header, "currentListing"),
+    landUse: findColumn(header, "landUse"),
   };
 
   if (col.address === -1 || col.salePrice === -1) {
@@ -76,38 +114,55 @@ export async function uploadComparablesCsv(
 
   const { data: subject } = await supabaseAdmin
     .from("appraisals")
-    .select("capital_value, floor_area_m2")
+    .select("address, capital_value, floor_area_m2")
     .eq("id", appraisalId)
     .single();
+  const subjectAddressNorm = normalizeHeader(subject?.address ?? "");
 
   const rowsToInsert = dataRows
     .map((r) => {
-      const address = r[col.address]?.trim();
-      const salePrice = Number(r[col.salePrice]?.replace(/[^0-9.-]/g, ""));
+      let address = r[col.address]?.trim();
+      const salePrice = parseNum(r[col.salePrice]);
       if (!address || !salePrice) return null;
-      const capitalValue = col.capitalValue !== -1 ? Number(r[col.capitalValue]?.replace(/[^0-9.-]/g, "")) || null : null;
-      const floorArea = col.floorArea !== -1 ? Number(r[col.floorArea]) || null : null;
-      const saleDateRaw = col.saleDate !== -1 ? r[col.saleDate]?.trim() : "";
-      const saleDate = saleDateRaw && !isNaN(Date.parse(saleDateRaw)) ? new Date(saleDateRaw).toISOString().slice(0, 10) : null;
+
+      // A "nearby sales" export from Prover often includes the subject
+      // property itself in the results — it's not a comparable to itself.
+      if (subjectAddressNorm && normalizeHeader(address) === subjectAddressNorm) return null;
+
+      const suburb = col.suburb !== -1 ? r[col.suburb]?.trim() : "";
+      if (suburb && !address.toLowerCase().includes(suburb.toLowerCase())) {
+        address = `${address}, ${suburb}`;
+      }
+
+      const capitalValue = col.capitalValue !== -1 ? parseNum(r[col.capitalValue]) : null;
+      const floorArea = col.floorArea !== -1 ? parseNum(r[col.floorArea]) : null;
+      const saleDate = col.saleDate !== -1 ? parseSaleDate(r[col.saleDate]) : null;
+      const landUse = col.landUse !== -1 ? r[col.landUse]?.trim() : "";
+
+      // A vacant-section sale isn't a valid comparable for a dwelling appraisal
+      // (or vice versa) — flag it rather than silently averaging it in.
+      const isVacantLand = /vacant/i.test(landUse) || floorArea === 0;
+      const flaggedReason =
+        flagIfNonMarket(salePrice, capitalValue) ??
+        (isVacantLand ? "Vacant land sale — not comparable to a dwelling." : null);
 
       return {
         appraisal_id: appraisalId,
         address,
         sale_date: saleDate,
         floor_area_m2: floorArea,
-        land_area_m2: col.landArea !== -1 ? Number(r[col.landArea]) || null : null,
-        bedrooms: col.bedrooms !== -1 ? Number(r[col.bedrooms]) || null : null,
+        land_area_m2: col.landArea !== -1 ? parseNum(r[col.landArea]) : null,
+        bedrooms: col.bedrooms !== -1 ? parseNum(r[col.bedrooms]) : null,
         sale_price: salePrice,
         capital_value: capitalValue,
         is_current_listing: col.currentListing !== -1 ? /^(true|yes|1)$/i.test(r[col.currentListing]?.trim() ?? "") : false,
         grade: suggestGrade(subject?.floor_area_m2 ?? null, floorArea),
-        included: true,
-        flagged_reason: flagIfNonMarket(salePrice, capitalValue),
+        included: !flaggedReason,
+        flagged_reason: flaggedReason,
         indicated_value: computeIndicatedValue(salePrice, capitalValue, subject?.capital_value ?? null),
       };
     })
-    .filter((r): r is NonNullable<typeof r> => r !== null)
-    .map((r) => (r.flagged_reason ? { ...r, included: false } : r));
+    .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (rowsToInsert.length === 0) {
     return { ok: false, error: "No usable rows found — check the file matches the expected columns." };
