@@ -253,6 +253,13 @@ function SubjectPanel({ appraisal }: { appraisal: Appraisal }) {
         <input name="land_value" type="number" defaultValue={appraisal.land_value ?? ""} placeholder="Land value ($)" className="field-input" />
         <input name="improvements_value" type="number" defaultValue={appraisal.improvements_value ?? ""} placeholder="Improvements value ($)" className="field-input" />
         <input name="capital_value" type="number" defaultValue={appraisal.capital_value ?? ""} placeholder="Capital value ($)" className="field-input" />
+        <p className="col-span-2 -mt-1 text-[11px] leading-relaxed text-[#837c6c] sm:col-span-4">
+          Land value + improvements value = capital value, always — leave one of the three blank and it's
+          calculated from the other two. Find the official split on the property's council rates record or a
+          QV.co.nz search if you don't have all three yet. If you know of value the CV doesn't reflect yet (a
+          recent renovation, a pool put in since the last rating valuation), add it to Improvements — that
+          flows into the CV-index method's indicated values, the main driver of the range below.
+        </p>
         <input name="last_sold_date" type="date" defaultValue={appraisal.last_sold_date ?? ""} className="field-input" />
         <input name="last_sold_price" type="number" defaultValue={appraisal.last_sold_price ?? ""} placeholder="Last sold price ($)" className="field-input" />
         <input name="vendor_name" defaultValue={appraisal.vendor_name ?? ""} placeholder="Vendor name" className="field-input" />

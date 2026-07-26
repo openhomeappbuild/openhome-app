@@ -336,6 +336,20 @@ export async function updateAppraisalSubject(
     return s ? Number(s) : null;
   }
 
+  let landValue = toNum(formData.get("land_value"));
+  let improvementsValue = toNum(formData.get("improvements_value"));
+  let capitalValue = toNum(formData.get("capital_value"));
+
+  // A council rating valuation is exactly land value + improvements value —
+  // not an estimate, an identity — so once two of the three are on file,
+  // the third isn't something the agent should have to go and look up too.
+  const knownCount = [landValue, improvementsValue, capitalValue].filter((v) => v != null).length;
+  if (knownCount === 2) {
+    if (capitalValue == null) capitalValue = (landValue as number) + (improvementsValue as number);
+    else if (landValue == null) landValue = capitalValue - (improvementsValue as number);
+    else if (improvementsValue == null) improvementsValue = capitalValue - (landValue as number);
+  }
+
   const { error } = await supabaseAdmin
     .from("appraisals")
     .update({
@@ -347,9 +361,9 @@ export async function updateAppraisalSubject(
       land_area_m2: toNum(formData.get("land_area_m2")),
       bedrooms: toNum(formData.get("bedrooms")),
       bathrooms: toNum(formData.get("bathrooms")),
-      land_value: toNum(formData.get("land_value")),
-      improvements_value: toNum(formData.get("improvements_value")),
-      capital_value: toNum(formData.get("capital_value")),
+      land_value: landValue,
+      improvements_value: improvementsValue,
+      capital_value: capitalValue,
       last_sold_date: String(formData.get("last_sold_date") ?? "").trim() || null,
       last_sold_price: toNum(formData.get("last_sold_price")),
       description: String(formData.get("description") ?? "").trim() || null,
