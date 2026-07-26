@@ -594,11 +594,11 @@ function ValuationPanel({ appraisal, comparables }: { appraisal: Appraisal; comp
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <MethodCard title="1 · Direct comparison" badge="Primary" value={vComparison} formula="Adjusted midpoint" explainer="What similar properties actually sold for, adjusted for differences. The market's own verdict — carries the most weight for standard homes.">
-          <Slider label="Adjusted midpoint from comparables" value={comparisonValue} display={money(comparisonValue)} min={Math.round((comparisonValue * 0.8) / 1000) * 1000} max={Math.round((comparisonValue * 1.2) / 1000) * 1000} step={5000} onChange={setComparisonValue} />
+          <Slider label="Adjusted midpoint from comparables" value={comparisonValue} display={money(comparisonValue)} min={Math.round((defaults.comparisonValue * 0.8) / 1000) * 1000} max={Math.round((defaults.comparisonValue * 1.2) / 1000) * 1000} step={5000} onChange={setComparisonValue} />
         </MethodCard>
 
         <MethodCard title="2 · Income approach" badge="Investor lens" value={vIncome} formula="Rent × 52 ÷ yield" explainer="Value from rental return: annual rent divided by the yield buyers expect. Most relevant for properties with strong rental demand.">
-          <Slider label="Weekly rent" value={weeklyRent} display={`$${weeklyRent.toLocaleString("en-NZ")}`} min={Math.max(Math.round((weeklyRent * 0.7) / 25) * 25, 100)} max={Math.round((weeklyRent * 1.3) / 25) * 25} step={25} onChange={setWeeklyRent} />
+          <Slider label="Weekly rent" value={weeklyRent} display={`$${weeklyRent.toLocaleString("en-NZ")}`} min={Math.max(Math.round((defaults.weeklyRent * 0.7) / 25) * 25, 100)} max={Math.round((defaults.weeklyRent * 1.3) / 25) * 25} step={25} onChange={setWeeklyRent} />
           <Slider label="Gross yield buyers accept" value={grossYield} display={`${grossYield.toFixed(1)}%`} min={3} max={8} step={0.1} onChange={setGrossYield} />
         </MethodCard>
 
@@ -607,13 +607,13 @@ function ValuationPanel({ appraisal, comparables }: { appraisal: Appraisal; comp
         </MethodCard>
 
         <MethodCard title="4 · Rate per m²" badge="Cross-check" value={vRate} formula={`${floorArea || "—"}m² × rate`} explainer="Comparable sale prices per square metre of floor area, applied to the subject. Shows whether size alone explains the price.">
-          <Slider label="Rate per m² of floor area" value={ratePerM2} display={`$${ratePerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((ratePerM2 * 0.7) / 50) * 50, 500)} max={Math.round((ratePerM2 * 1.3) / 50) * 50} step={50} onChange={setRatePerM2} />
+          <Slider label="Rate per m² of floor area" value={ratePerM2} display={`$${ratePerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((defaults.ratePerM2 * 0.7) / 50) * 50, 500)} max={Math.round((defaults.ratePerM2 * 1.3) / 50) * 50} step={50} onChange={setRatePerM2} />
         </MethodCard>
 
         <MethodCard title="5 · Summation (cost)" badge="Upper anchor" value={vSummation} formula="Land + build − depreciation" explainer="Land value plus the depreciated replacement cost of the buildings. Typically sets a ceiling — when buying is cheaper than building, value at the top of the range is supported." wide>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Slider label="Land value" value={landValue} display={money(landValue)} min={Math.round((landValue * 0.7) / 10000) * 10000} max={Math.round((landValue * 1.3) / 10000) * 10000} step={10000} onChange={setLandValue} />
-            <Slider label="Build cost per m²" value={buildCostPerM2} display={`$${buildCostPerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((buildCostPerM2 * 0.6) / 50) * 50, 500)} max={Math.round((buildCostPerM2 * 1.4) / 50) * 50} step={50} onChange={setBuildCostPerM2} />
+            <Slider label="Land value" value={landValue} display={money(landValue)} min={Math.round((defaults.landValue * 0.7) / 10000) * 10000} max={Math.round((defaults.landValue * 1.3) / 10000) * 10000} step={10000} onChange={setLandValue} />
+            <Slider label="Build cost per m²" value={buildCostPerM2} display={`$${buildCostPerM2.toLocaleString("en-NZ")}`} min={Math.max(Math.round((defaults.buildCostPerM2 * 0.6) / 50) * 50, 500)} max={Math.round((defaults.buildCostPerM2 * 1.4) / 50) * 50} step={50} onChange={setBuildCostPerM2} />
             <Slider label="Depreciation" value={depreciation} display={`${depreciation}%`} min={0} max={40} step={1} onChange={setDepreciation} />
           </div>
         </MethodCard>
