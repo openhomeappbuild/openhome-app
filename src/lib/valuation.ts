@@ -18,6 +18,26 @@ export function flagIfNonMarket(salePrice: number, capitalValue: number | null):
 }
 
 /**
+ * Catches comparables that are a wildly different scale of property from
+ * the subject — e.g. a lifestyle block pulled in by a "nearby sales"
+ * search radius. This is the only sanity check available when the subject
+ * has no floor area or capital value yet (grading and the CV-index method
+ * both go blind in that case — see computeIndicatedValue), and land area
+ * is the one figure Prover always provides, even for a bare section.
+ */
+export function flagIfSizeMismatch(subjectLandM2: number | null, compLandM2: number | null): string | null {
+  if (!subjectLandM2 || !compLandM2) return null;
+  const ratio = compLandM2 / subjectLandM2;
+  if (ratio >= 3) {
+    return `Land area is ${ratio.toFixed(1)}x the subject's — check this is a genuine comparable.`;
+  }
+  if (ratio <= 1 / 3) {
+    return `Land area is only ${Math.round(ratio * 100)}% of the subject's — check this is a genuine comparable.`;
+  }
+  return null;
+}
+
+/**
  * CV-index method: scales each comparable's sale price by the ratio of the
  * subject's capital value to the comparable's, giving an indicated value for
  * the subject. One of the five valuation approaches in the brief — plain

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { parseCsv } from "@/lib/csv";
-import { suggestGrade, flagIfNonMarket, computeIndicatedValue } from "@/lib/valuation";
+import { suggestGrade, flagIfNonMarket, flagIfSizeMismatch, computeIndicatedValue } from "@/lib/valuation";
 
 export type ActionState = { ok: boolean; error?: string; info?: string };
 
@@ -181,6 +181,7 @@ export async function uploadComparablesCsv(
 
       const capitalValue = col.capitalValue !== -1 ? parseNum(r[col.capitalValue]) : null;
       const floorArea = col.floorArea !== -1 ? parseNum(r[col.floorArea]) : null;
+      const landArea = col.landArea !== -1 ? parseNum(r[col.landArea]) : null;
       const saleDate = col.saleDate !== -1 ? parseSaleDate(r[col.saleDate]) : null;
       const landUse = col.landUse !== -1 ? r[col.landUse]?.trim() : "";
 
@@ -189,14 +190,15 @@ export async function uploadComparablesCsv(
       const isVacantLand = /vacant/i.test(landUse) || floorArea === 0;
       const flaggedReason =
         flagIfNonMarket(salePrice, capitalValue) ??
-        (isVacantLand ? "Vacant land sale — not comparable to a dwelling." : null);
+        (isVacantLand ? "Vacant land sale — not comparable to a dwelling." : null) ??
+        flagIfSizeMismatch(subject?.land_area_m2 ?? null, landArea);
 
       return {
         appraisal_id: appraisalId,
         address,
         sale_date: saleDate,
         floor_area_m2: floorArea,
-        land_area_m2: col.landArea !== -1 ? parseNum(r[col.landArea]) : null,
+        land_area_m2: landArea,
         bedrooms: col.bedrooms !== -1 ? parseNum(r[col.bedrooms]) : null,
         sale_price: salePrice,
         capital_value: capitalValue,
@@ -233,22 +235,23 @@ export async function addComparableManual(
   if (!salePrice) return { ok: false, error: "Sale price is required." };
 
   const floorArea = Number(formData.get("floor_area_m2")) || null;
+  const landArea = Number(formData.get("land_area_m2")) || null;
   const capitalValue = Number(formData.get("capital_value")) || null;
   const subjectCv = await getSubjectCapitalValue(appraisalId);
   const { data: subject } = await supabaseAdmin
     .from("appraisals")
-    .select("floor_area_m2")
+    .select("floor_area_m2, land_area_m2")
     .eq("id", appraisalId)
     .single();
 
-  const flagged = flagIfNonMarket(salePrice, capitalValue);
+  const flagged = flagIfNonMarket(salePrice, capitalValue) ?? flagIfSizeMismatch(subject?.land_area_m2 ?? null, landArea);
 
   const { error } = await supabaseAdmin.from("appraisal_comparables").insert({
     appraisal_id: appraisalId,
     address,
     sale_date: String(formData.get("sale_date") ?? "").trim() || null,
     floor_area_m2: floorArea,
-    land_area_m2: Number(formData.get("land_area_m2")) || null,
+    land_area_m2: landArea,
     bedrooms: Number(formData.get("bedrooms")) || null,
     sale_price: salePrice,
     capital_value: capitalValue,
