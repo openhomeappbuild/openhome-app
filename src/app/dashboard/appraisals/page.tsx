@@ -36,7 +36,11 @@ export default async function AppraisalsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {(appraisals ?? []).map((a) => {
-            const range = rangeByAppraisal.get(a.id);
+            const computed = rangeByAppraisal.get(a.id);
+            const range =
+              a.estimate_low != null && a.estimate_high != null
+                ? { low: a.estimate_low, high: a.estimate_high, count: computed?.count ?? 0 }
+                : computed;
             return (
               <Link
                 key={a.id}

@@ -8,6 +8,8 @@ import {
   updateComparable,
   deleteComparable,
   updateAppraisalSubject,
+  setEstimateOverride,
+  clearEstimateOverride,
   type ActionState,
 } from "./actions";
 import { estimateRange, defaultValuationInputs, type Grade } from "@/lib/valuation";
@@ -33,6 +35,8 @@ type Appraisal = {
   vendor_name: string | null;
   vendor_email: string | null;
   status: string;
+  estimate_low: number | null;
+  estimate_high: number | null;
 };
 
 type Comparable = {
@@ -55,6 +59,10 @@ const money = (n: number) => `$${n.toLocaleString("en-NZ")}`;
 
 export function AppraisalView({ appraisal, comparables }: { appraisal: Appraisal; comparables: Comparable[] }) {
   const range = estimateRange(comparables);
+  const hasOverride = appraisal.estimate_low != null && appraisal.estimate_high != null;
+  const effectiveRange = hasOverride
+    ? { low: appraisal.estimate_low as number, high: appraisal.estimate_high as number, count: range?.count ?? 0 }
+    : range;
 
   return (
     <div>
@@ -79,20 +87,105 @@ export function AppraisalView({ appraisal, comparables }: { appraisal: Appraisal
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-6 md:grid-cols-4">
-        <Stat n={range ? money(range.low) : "—"} l="Lowest expectation" />
-        <Stat n={range ? money(range.high) : "—"} l="On a good day" />
+        <Stat n={effectiveRange ? money(effectiveRange.low) : "—"} l="Lowest expectation" d={hasOverride ? "Your estimate" : undefined} />
+        <Stat n={effectiveRange ? money(effectiveRange.high) : "—"} l="On a good day" d={hasOverride ? "Your estimate" : undefined} />
         <Stat n={range?.count ?? 0} l="Comparables included" />
         <Stat n={appraisal.capital_value ? money(appraisal.capital_value) : "—"} l="Capital value (CV)" />
       </div>
+
+      <EstimateOverrideControl appraisal={appraisal} computedRange={range} hasOverride={hasOverride} />
 
       <div className="mt-4">
         <ValuationPanel appraisal={appraisal} comparables={comparables} />
       </div>
 
       <div className="mt-4">
-        <ProposalPanel appraisal={appraisal} comparables={comparables.filter((c) => c.included)} range={range} />
+        <ProposalPanel appraisal={appraisal} comparables={comparables.filter((c) => c.included)} range={effectiveRange} />
       </div>
     </div>
+  );
+}
+
+function EstimateOverrideControl({
+  appraisal,
+  computedRange,
+  hasOverride,
+}: {
+  appraisal: Appraisal;
+  computedRange: ReturnType<typeof estimateRange>;
+  hasOverride: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const boundAction = setEstimateOverride.bind(null, appraisal.id);
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(boundAction, { ok: false });
+  const [, startTransition] = useTransition();
+
+  if (hasOverride && !editing) {
+    return (
+      <p className="mt-2 text-xs text-[#837c6c]">
+        Using your own figure instead of the comparables range.{" "}
+        <button onClick={() => setEditing(true)} className="font-semibold text-[#14130f] underline">
+          Edit
+        </button>{" "}
+        ·{" "}
+        <button
+          onClick={() => startTransition(() => clearEstimateOverride(appraisal.id))}
+          className="font-semibold text-[#14130f] underline"
+        >
+          Revert to computed range
+        </button>
+      </p>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <p className="mt-2 text-xs text-[#837c6c]">
+        That's a computed cross-check, not a verdict.{" "}
+        <button onClick={() => setEditing(true)} className="font-semibold text-[#14130f] underline">
+          Set your own estimate
+        </button>{" "}
+        if your judgment on this property differs.
+      </p>
+    );
+  }
+
+  return (
+    <form
+      action={(fd) => {
+        formAction(fd);
+        setEditing(false);
+      }}
+      className="mt-2 flex flex-wrap items-end gap-2"
+    >
+      <div>
+        <label className="mb-1 block text-[10.5px] uppercase tracking-wide text-[#837c6c]">Your low ($)</label>
+        <input
+          name="estimate_low"
+          type="number"
+          min="0"
+          defaultValue={appraisal.estimate_low ?? computedRange?.low ?? ""}
+          className="field-input w-[140px]"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-[10.5px] uppercase tracking-wide text-[#837c6c]">Your high ($)</label>
+        <input
+          name="estimate_high"
+          type="number"
+          min="0"
+          defaultValue={appraisal.estimate_high ?? computedRange?.high ?? ""}
+          className="field-input w-[140px]"
+        />
+      </div>
+      <button disabled={pending} className="rounded-lg bg-[#14130f] px-3 py-2 text-xs font-semibold text-white">
+        Save
+      </button>
+      <button type="button" onClick={() => setEditing(false)} className="text-xs font-semibold text-[#837c6c]">
+        Cancel
+      </button>
+      {state.error && <p className="w-full text-xs text-[#b23b2e]">{state.error}</p>}
+    </form>
   );
 }
 

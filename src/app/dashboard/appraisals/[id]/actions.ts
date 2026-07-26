@@ -157,6 +157,18 @@ export async function runCsvImport(appraisalId: string, file: File): Promise<Act
     }
   }
 
+  // Re-uploading the same (or an overlapping) export, or a double-click on
+  // Import, shouldn't duplicate every row it has in common with what's
+  // already here — skip anything that matches an existing comparable's
+  // address for this appraisal.
+  const { data: existing } = await supabaseAdmin
+    .from("appraisal_comparables")
+    .select("address")
+    .eq("appraisal_id", appraisalId);
+  const existingAddressNorms = new Set((existing ?? []).map((e) => normalizeHeader(e.address)));
+  const seenInThisBatch = new Set<string>();
+  let duplicateCount = 0;
+
   const rowsToInsert = dataRows
     .map((r) => {
       let address = r[col.address]?.trim();
@@ -166,6 +178,13 @@ export async function runCsvImport(appraisalId: string, file: File): Promise<Act
       // A "nearby sales" export from Prover often includes the subject
       // property itself in the results — it's not a comparable to itself.
       if (subjectAddressNorm && normalizeHeader(address) === subjectAddressNorm) return null;
+
+      const addressNorm = normalizeHeader(address);
+      if (existingAddressNorms.has(addressNorm) || seenInThisBatch.has(addressNorm)) {
+        duplicateCount++;
+        return null;
+      }
+      seenInThisBatch.add(addressNorm);
 
       const suburb = col.suburb !== -1 ? r[col.suburb]?.trim() : "";
       if (suburb && !address.toLowerCase().includes(suburb.toLowerCase())) {
@@ -213,7 +232,9 @@ export async function runCsvImport(appraisalId: string, file: File): Promise<Act
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (rowsToInsert.length === 0) {
-    return { ok: false, error: "No usable rows found — check the file matches the expected columns." };
+    return duplicateCount > 0
+      ? { ok: false, error: `Every row in this file is already in the comparables list (${duplicateCount} skipped).` }
+      : { ok: false, error: "No usable rows found — check the file matches the expected columns." };
   }
 
   const finalRows = flagOutliersByIndicatedValue(rowsToInsert);
@@ -222,7 +243,7 @@ export async function runCsvImport(appraisalId: string, file: File): Promise<Act
   if (error) return { ok: false, error: "Could not save comparables. Please try again." };
 
   revalidatePath(`/dashboard/appraisals/${appraisalId}`);
-  const base = `Imported ${finalRows.length} comparable${finalRows.length === 1 ? "" : "s"}.`;
+  const base = `Imported ${finalRows.length} comparable${finalRows.length === 1 ? "" : "s"}${duplicateCount > 0 ? ` (${duplicateCount} already in the list skipped)` : ""}.`;
   const info = filledFields.length > 0 ? `${base} Also filled in the subject's ${filledFields.join(", ")} from the CSV.` : base;
   return { ok: true, info };
 }
@@ -341,4 +362,40 @@ export async function updateAppraisalSubject(
 
   revalidatePath(`/dashboard/appraisals/${appraisalId}`);
   return { ok: true };
+}
+
+/**
+ * The comparables-derived range is a computed cross-check, not a verdict —
+ * "appraisal figures are the agent's judgment" per the brief. Once set,
+ * this range takes over everywhere the computed one used to show (the
+ * Stats row, the appraisals list, and the generated proposal), with the
+ * comparable sales still shown underneath as the evidence for it.
+ */
+export async function setEstimateOverride(
+  appraisalId: string,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const low = Number(String(formData.get("estimate_low") ?? "").replace(/[^0-9.]/g, ""));
+  const high = Number(String(formData.get("estimate_high") ?? "").replace(/[^0-9.]/g, ""));
+
+  if (!low || !high) return { ok: false, error: "Enter both a low and high figure." };
+  if (low > high) return { ok: false, error: "The low figure should be less than the high figure." };
+
+  const { error } = await supabaseAdmin
+    .from("appraisals")
+    .update({ estimate_low: low, estimate_high: high })
+    .eq("id", appraisalId);
+
+  if (error) return { ok: false, error: "Could not save. Please try again." };
+
+  revalidatePath(`/dashboard/appraisals/${appraisalId}`);
+  revalidatePath("/dashboard/appraisals");
+  return { ok: true };
+}
+
+export async function clearEstimateOverride(appraisalId: string) {
+  await supabaseAdmin.from("appraisals").update({ estimate_low: null, estimate_high: null }).eq("id", appraisalId);
+  revalidatePath(`/dashboard/appraisals/${appraisalId}`);
+  revalidatePath("/dashboard/appraisals");
 }
