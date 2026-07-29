@@ -1,7 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { formatNZDayKey } from "@/lib/nz-time";
+import { formatNZDayKey, formatNZDate } from "@/lib/nz-time";
 import { Panel, Empty } from "../ui";
 import { SendBatchButton } from "./send-batch-button";
+import { ScheduledBatchControls } from "./scheduled-batch-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,11 @@ export default async function EmailsPage() {
   }
 
   const draftBatches: { key: string; rows: EmailRow[] }[] = [];
+  const scheduledBatches: { key: string; rows: EmailRow[] }[] = [];
   const sentBatches: { key: string; rows: EmailRow[] }[] = [];
   for (const [key, rows] of batches) {
     if (rows.some((r) => r.status === "draft")) draftBatches.push({ key, rows });
+    else if (rows.some((r) => r.status === "scheduled")) scheduledBatches.push({ key, rows });
     else sentBatches.push({ key, rows });
   }
 
@@ -73,6 +76,35 @@ export default async function EmailsPage() {
                         className="max-h-[360px] overflow-y-auto px-5 py-4 text-sm"
                         dangerouslySetInnerHTML={{ __html: first.body_html }}
                       />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title={`Scheduled (${scheduledBatches.length})`}>
+          {scheduledBatches.length === 0 ? (
+            <Empty text="Nothing scheduled — approve a draft above and pick a date instead of sending straight away." />
+          ) : (
+            <div className="space-y-6">
+              {scheduledBatches.map(({ key, rows }) => {
+                const first = rows[0];
+                const [listingId, dayKey, type] = key.split("::");
+                return (
+                  <div key={key} className="border-b border-[#eef1f5] pb-6 last:border-none last:pb-0">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <b className="text-[14px]">{TYPE_LABEL[type] ?? type}</b>
+                        <span className="ml-2 text-xs text-[#837c6c]">
+                          {listingAddress.get(listingId) ?? "Listing"} ·{" "}
+                          {formatNZDayKey(dayKey, { day: "numeric", month: "short" })} · {rows.length} recipient
+                          {rows.length === 1 ? "" : "s"} · sends{" "}
+                          {first.scheduled_for ? formatNZDate(`${first.scheduled_for}T00:00:00Z`, { day: "numeric", month: "short" }) : "soon"}
+                        </span>
+                      </div>
+                      <ScheduledBatchControls listingId={listingId} dayKey={dayKey} type={type} />
                     </div>
                   </div>
                 );

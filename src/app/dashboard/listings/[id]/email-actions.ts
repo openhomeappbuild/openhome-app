@@ -6,7 +6,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { nzDayKey } from "@/lib/nz-time";
 import { buildFollowupEmail, buildSellerReportEmail } from "@/lib/email-templates";
 import { generateFollowupCopy } from "@/lib/ai-email-copy";
-import { getResendClient, EMAIL_FROM } from "@/lib/resend";
+import { getResendClient } from "@/lib/resend";
+import { sendEmailRows } from "@/lib/send-emails";
 
 export type EmailActionState = { error?: string; info?: string };
 
@@ -24,7 +25,7 @@ async function batchAlreadySent(listingId: string, dayKey: string, type: string)
     .eq("listing_id", listingId)
     .eq("open_home_day", dayKey)
     .eq("type", type)
-    .eq("status", "sent");
+    .in("status", ["sent", "scheduled"]);
   return (count ?? 0) > 0;
 }
 
@@ -35,7 +36,7 @@ export async function generateFollowupDrafts(
   _formData: FormData
 ): Promise<EmailActionState> {
   if (await batchAlreadySent(listingId, dayKey, "followup")) {
-    return { error: "Follow-up emails for this open home have already been sent." };
+    return { error: "Follow-up emails for this open home have already been sent or scheduled." };
   }
 
   const { data: listing } = await supabaseAdmin.from("listings").select("*").eq("id", listingId).single();
@@ -119,7 +120,7 @@ export async function generateSellerReportDraft(
   _formData: FormData
 ): Promise<EmailActionState> {
   if (await batchAlreadySent(listingId, dayKey, "seller_report")) {
-    return { error: "The seller report for this open home has already been sent." };
+    return { error: "The seller report for this open home has already been sent or scheduled." };
   }
 
   const { data: listing } = await supabaseAdmin.from("listings").select("*").eq("id", listingId).single();
@@ -182,7 +183,7 @@ export async function sendEmailBatch(
     .eq("listing_id", listingId)
     .eq("open_home_day", dayKey)
     .eq("type", type)
-    .eq("status", "draft");
+    .in("status", ["draft", "scheduled"]);
 
   if (!drafts || drafts.length === 0) return { error: "No drafts to send." };
 
@@ -192,28 +193,67 @@ export async function sendEmailBatch(
   }
 
   const appUrl = await getAppUrl();
-
-  let sent = 0;
-  for (const draft of drafts) {
-    const pixel = `<img src="${appUrl}/api/track/${draft.id}" width="1" height="1" alt="" style="display:block;border:0;" />`;
-    const { error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: draft.recipient_email,
-      subject: draft.subject,
-      html: draft.body_html + pixel,
-    });
-    if (error) {
-      await supabaseAdmin.from("emails").update({ status: "failed", error: error.message }).eq("id", draft.id);
-    } else {
-      await supabaseAdmin.from("emails").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", draft.id);
-      sent += 1;
-    }
-  }
+  const { sent, failed } = await sendEmailRows(drafts, appUrl, resend);
 
   revalidatePath(`/dashboard/listings/${listingId}`);
   revalidatePath("/dashboard/emails");
 
   if (sent === 0) return { error: "All sends failed. Check your Resend configuration." };
-  if (sent < drafts.length) return { info: `Sent ${sent} of ${drafts.length} — some failed, see history.` };
+  if (failed > 0) return { info: `Sent ${sent} of ${drafts.length} — some failed, see history.` };
   return { info: `Sent to ${sent} recipient${sent === 1 ? "" : "s"}.` };
+}
+
+/**
+ * Marks a batch as approved for a future send rather than sending it now.
+ * The actual send happens in the daily cron (see
+ * /api/cron/send-scheduled-emails) — Vercel Cron on the Hobby plan only
+ * runs once a day with up to ~59 minutes of slop, so this is deliberately
+ * day-level ("send on this date"), not a specific time.
+ */
+export async function scheduleEmailBatch(
+  listingId: string,
+  dayKey: string,
+  type: string,
+  _prevState: EmailActionState,
+  formData: FormData
+): Promise<EmailActionState> {
+  const scheduledFor = String(formData.get("scheduled_for") ?? "").trim();
+  if (!scheduledFor) return { error: "Pick a date to schedule for." };
+
+  const today = nzDayKey(new Date());
+  if (scheduledFor < today) return { error: "That date's already passed." };
+
+  const { data: drafts, error: fetchError } = await supabaseAdmin
+    .from("emails")
+    .select("id")
+    .eq("listing_id", listingId)
+    .eq("open_home_day", dayKey)
+    .eq("type", type)
+    .eq("status", "draft");
+
+  if (fetchError || !drafts || drafts.length === 0) return { error: "No drafts to schedule." };
+
+  const { error } = await supabaseAdmin
+    .from("emails")
+    .update({ status: "scheduled", scheduled_for: scheduledFor })
+    .in("id", drafts.map((d) => d.id));
+
+  if (error) return { error: "Could not schedule. Please try again." };
+
+  revalidatePath(`/dashboard/listings/${listingId}`);
+  revalidatePath("/dashboard/emails");
+  const dateLabel = scheduledFor === today ? "today" : scheduledFor;
+  return { info: `Scheduled ${drafts.length} email${drafts.length === 1 ? "" : "s"} to send ${dateLabel}.` };
+}
+
+export async function cancelScheduledBatch(listingId: string, dayKey: string, type: string) {
+  await supabaseAdmin
+    .from("emails")
+    .update({ status: "draft", scheduled_for: null })
+    .eq("listing_id", listingId)
+    .eq("open_home_day", dayKey)
+    .eq("type", type)
+    .eq("status", "scheduled");
+  revalidatePath(`/dashboard/listings/${listingId}`);
+  revalidatePath("/dashboard/emails");
 }
