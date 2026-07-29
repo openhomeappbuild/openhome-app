@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { formatNZDate, formatNZTime } from "@/lib/nz-time";
+import { formatNZDate, formatNZTime, nzDayKey } from "@/lib/nz-time";
+import { getUnfollowedContacts } from "@/lib/followups";
 import { Stat, Panel, Empty, Pill } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -11,13 +12,19 @@ function startOfMonth() {
 }
 
 export default async function DashboardHomePage() {
-  const [{ count: activeListings }, { data: monthCheckins }, { data: allCheckins }, { data: offers }] =
+  const today = nzDayKey(new Date());
+
+  const [{ count: activeListings }, { data: monthCheckins }, { data: allCheckins }, { data: offers }, { data: followUps }, unfollowed] =
     await Promise.all([
       supabaseAdmin.from("listings").select("*", { count: "exact", head: true }).eq("status", "active"),
       supabaseAdmin.from("checkins").select("id").gte("created_at", startOfMonth()),
       supabaseAdmin.from("checkins").select("email, consent"),
       supabaseAdmin.from("offers").select("id, buyer_name, amount, expiry, status, listing_id"),
+      supabaseAdmin.from("follow_ups").select("*").eq("status", "outstanding").order("due_date", { ascending: true }),
+      getUnfollowedContacts(),
     ]);
+
+  const dueFollowUps = (followUps ?? []).filter((f) => f.due_date <= today);
 
   const consentedEmails = new Set(
     (allCheckins ?? []).filter((c) => c.consent).map((c) => c.email)
@@ -107,6 +114,68 @@ export default async function DashboardHomePage() {
                       <Link href={`/checkin/${l.id}`}>
                         <Pill tone="slate">Check-in ready</Pill>
                       </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Panel
+          title={`Outstanding calls (${dueFollowUps.filter((f) => f.type === "call").length})`}
+          action={
+            <Link href="/dashboard/schedule" className="text-xs font-semibold text-[#14130f] underline">
+              Open schedule
+            </Link>
+          }
+        >
+          {dueFollowUps.length === 0 ? (
+            <Empty text="No calls or emails due today." />
+          ) : (
+            <table className="w-full text-[13px]">
+              <tbody>
+                {dueFollowUps.slice(0, 6).map((f) => (
+                  <tr key={f.id} className="border-b border-[#eef1f5] last:border-none">
+                    <td className="py-2.5 pr-3">
+                      <b>{f.contact_name || f.contact_email}</b>
+                      {f.reason && <div className="text-[#837c6c]">{f.reason}</div>}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <Pill tone={f.due_date < today ? "red" : "amber"}>
+                        {f.type === "call" ? "Call" : "Email"} {f.due_date < today ? "overdue" : "today"}
+                      </Pill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+
+        <Panel
+          title={`Not yet followed up (${unfollowed.length})`}
+          action={
+            <Link href="/dashboard/schedule" className="text-xs font-semibold text-[#14130f] underline">
+              Open schedule
+            </Link>
+          }
+        >
+          {unfollowed.length === 0 ? (
+            <Empty text="Everyone who's visited has been followed up on." />
+          ) : (
+            <table className="w-full text-[13px]">
+              <tbody>
+                {unfollowed.slice(0, 6).map((c) => (
+                  <tr key={c.email} className="border-b border-[#eef1f5] last:border-none">
+                    <td className="py-2.5 pr-3">
+                      <b>{c.fullName}</b>
+                      <div className="text-[#837c6c]">{c.email}</div>
+                    </td>
+                    <td className="py-2.5 text-right text-[#837c6c]">
+                      {formatNZDate(c.lastVisit, { day: "numeric", month: "short" })}
                     </td>
                   </tr>
                 ))}
