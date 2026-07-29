@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { computeTier, type Tier } from "@/lib/tier";
 import { nzDayKey } from "@/lib/nz-time";
 import { PropertyTabs } from "./property-tabs";
+import { syncEnquiriesFromCheckins } from "./enquiries-actions";
 
 type Checkin = {
   id: string;
@@ -20,7 +21,9 @@ type Checkin = {
 export default async function PropertyFilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [{ data: listing }, { data: checkins }, { data: offers }, { data: documents }, { data: emailRows }] =
+  await syncEnquiriesFromCheckins(id);
+
+  const [{ data: listing }, { data: checkins }, { data: offers }, { data: documents }, { data: emailRows }, { data: enquiries }] =
     await Promise.all([
       supabaseAdmin.from("listings").select("*").eq("id", id).single(),
       supabaseAdmin
@@ -39,6 +42,11 @@ export default async function PropertyFilePage({ params }: { params: Promise<{ i
         .eq("listing_id", id)
         .order("created_at", { ascending: false }),
       supabaseAdmin.from("emails").select("open_home_day, type, status").eq("listing_id", id),
+      supabaseAdmin
+        .from("enquiries")
+        .select("*")
+        .eq("listing_id", id)
+        .order("contact_date", { ascending: false }),
     ]);
 
   if (!listing) notFound();
@@ -103,6 +111,7 @@ export default async function PropertyFilePage({ params }: { params: Promise<{ i
       stats={{ totalAttendees, localCount, consentCount, repeatCount, tierCounts }}
       openHomeDays={openHomeDays}
       offers={offers ?? []}
+      enquiries={enquiries ?? []}
       documents={documentsWithUrls}
       emailStatus={Object.fromEntries(emailStatus)}
     />

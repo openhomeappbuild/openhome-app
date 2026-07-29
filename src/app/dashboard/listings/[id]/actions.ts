@@ -90,16 +90,27 @@ export async function updateVendorDetails(
   const vendorEmail = String(formData.get("vendor_email") ?? "").trim() || null;
   const descriptionNotes = String(formData.get("description_notes") ?? "").trim() || null;
   const areaNotes = String(formData.get("area_notes") ?? "").trim() || null;
+  const listingUrl = String(formData.get("listing_url") ?? "").trim() || null;
 
-  const { error } = await supabaseAdmin
-    .from("listings")
-    .update({
-      vendor_name: vendorName,
-      vendor_email: vendorEmail,
-      description_notes: descriptionNotes,
-      area_notes: areaNotes,
-    })
-    .eq("id", listingId);
+  const update: Record<string, unknown> = {
+    vendor_name: vendorName,
+    vendor_email: vendorEmail,
+    description_notes: descriptionNotes,
+    area_notes: areaNotes,
+    listing_url: listingUrl,
+  };
+
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    const storagePath = `${listingId}/photo-${Date.now()}-${photo.name}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("documents")
+      .upload(storagePath, photo, { contentType: photo.type });
+    if (uploadError) return { ok: false, error: "Photo upload failed. Please try again." };
+    update.photo_storage_path = storagePath;
+  }
+
+  const { error } = await supabaseAdmin.from("listings").update(update).eq("id", listingId);
 
   if (error) return { ok: false, error: "Could not save details. Please try again." };
 

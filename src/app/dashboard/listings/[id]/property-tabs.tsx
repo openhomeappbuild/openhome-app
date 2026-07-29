@@ -7,6 +7,7 @@ import { generateFollowupDrafts, generateSellerReportDraft, sendEmailBatch, type
 import { TIER_STYLES, type Tier } from "@/lib/tier";
 import { formatNZDate, formatNZDayKey, formatNZTime } from "@/lib/nz-time";
 import { Stat, Panel, Empty, Pill } from "../../ui";
+import { VendorReportTab, type Enquiry } from "./vendor-report-tab";
 
 type Listing = {
   id: string;
@@ -22,6 +23,12 @@ type Listing = {
   vendor_email: string | null;
   description_notes: string | null;
   area_notes: string | null;
+  photo_storage_path: string | null;
+  listing_url: string | null;
+  agent_name: string;
+  agent_phone: string;
+  agent_email: string;
+  created_at: string;
 };
 
 type EmailBatchStatus = "none" | "draft" | "sent";
@@ -77,13 +84,14 @@ const OFFER_STATUS_TONE: Record<string, "grey" | "amber" | "green" | "red"> = {
   withdrawn: "grey",
 };
 
-const TABS = ["Overview", "Documents", "Open homes", "Offers"] as const;
+const TABS = ["Overview", "Documents", "Open homes", "Offers", "Vendor report"] as const;
 
 export function PropertyTabs({
   listing,
   stats,
   openHomeDays,
   offers,
+  enquiries,
   documents,
   emailStatus,
 }: {
@@ -91,6 +99,7 @@ export function PropertyTabs({
   stats: { totalAttendees: number; localCount: number; consentCount: number; repeatCount: number; tierCounts: Record<Tier, number> };
   openHomeDays: { day: string; attendees: Attendee[] }[];
   offers: Offer[];
+  enquiries: Enquiry[];
   documents: Document[];
   emailStatus: Record<string, DayEmailStatus>;
 }) {
@@ -190,6 +199,19 @@ export function PropertyTabs({
       )}
 
       {tab === "Offers" && <OffersTab listingId={listing.id} offers={offers} />}
+
+      {tab === "Vendor report" && (
+        <VendorReportTab
+          listing={listing}
+          enquiries={enquiries}
+          attendance={{
+            totalGroups: stats.totalAttendees,
+            localGroups: stats.localCount,
+            outOfAreaGroups: stats.totalAttendees - stats.localCount,
+            tierCounts: stats.tierCounts,
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -393,6 +415,14 @@ function VendorDetailsPanel({ listing }: { listing: Listing }) {
             <div className="text-[11px] uppercase tracking-wide text-[#837c6c]">Vendor email</div>
             <div>{listing.vendor_email || "—"}</div>
           </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-[#837c6c]">Listing link</div>
+            <div>{listing.listing_url || "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-[#837c6c]">Cover photo</div>
+            <div>{listing.photo_storage_path ? "Uploaded ✓" : "Not uploaded"}</div>
+          </div>
         </div>
         {!listing.vendor_email && (
           <p className="mt-3 text-xs text-[#a9761f]">
@@ -420,6 +450,16 @@ function VendorDetailsPanel({ listing }: { listing: Listing }) {
           defaultValue={listing.vendor_email ?? ""}
           className="field-input"
         />
+        <input
+          name="listing_url"
+          placeholder="Listing link (e.g. bayleys.co.nz/2251234)"
+          defaultValue={listing.listing_url ?? ""}
+          className="field-input col-span-2"
+        />
+        <label className="col-span-2 text-xs text-[#837c6c]">
+          Cover photo for vendor reports
+          <input name="photo" type="file" accept="image/*" className="field-input mt-1" />
+        </label>
         <textarea
           name="description_notes"
           placeholder="A few notes about the home (used in the follow-up email recap)"
