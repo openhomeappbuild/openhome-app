@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { nzDayKey } from "@/lib/nz-time";
 import { buildFollowupEmail, buildSellerReportEmail } from "@/lib/email-templates";
+import { generateFollowupCopy } from "@/lib/ai-email-copy";
 import { getResendClient, EMAIL_FROM } from "@/lib/resend";
 
 export type EmailActionState = { error?: string; info?: string };
@@ -64,6 +65,19 @@ export async function generateFollowupDrafts(
 
   const appUrl = await getAppUrl();
 
+  // Generated once for the whole batch, not per recipient — it's a recap of
+  // the same home for everyone, and only the greeting differs per person.
+  const aiCopy = await generateFollowupCopy({
+    address: listing.address,
+    suburb: listing.suburb,
+    region: listing.region,
+    bedrooms: listing.bedrooms,
+    bathrooms: listing.bathrooms,
+    carSpaces: listing.car_spaces,
+    descriptionNotes: listing.description_notes,
+    areaNotes: listing.area_notes,
+  });
+
   await supabaseAdmin.from("emails").delete().eq("listing_id", listingId).eq("open_home_day", dayKey).eq("type", "followup").eq("status", "draft");
 
   const rows = recipients.map((c) => {
@@ -75,6 +89,7 @@ export async function generateFollowupDrafts(
       dayKey,
       similarListings: similarListings ?? [],
       appUrl,
+      aiCopy,
     });
     return {
       listing_id: listingId,
@@ -93,7 +108,8 @@ export async function generateFollowupDrafts(
 
   revalidatePath(`/dashboard/listings/${listingId}`);
   revalidatePath("/dashboard/emails");
-  return { info: `${rows.length} follow-up draft${rows.length === 1 ? "" : "s"} ready to review.` };
+  const aiNote = aiCopy ? " (AI-drafted with Gemini — review before sending)" : "";
+  return { info: `${rows.length} follow-up draft${rows.length === 1 ? "" : "s"} ready to review${aiNote}.` };
 }
 
 export async function generateSellerReportDraft(

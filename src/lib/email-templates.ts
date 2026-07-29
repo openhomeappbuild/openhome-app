@@ -61,6 +61,7 @@ export function buildFollowupEmail({
   dayKey,
   similarListings,
   appUrl,
+  aiCopy,
 }: {
   listing: Listing;
   firstName: string;
@@ -68,6 +69,8 @@ export function buildFollowupEmail({
   dayKey: string;
   similarListings: SimilarListing[];
   appUrl: string;
+  /** AI-written recap/area paragraphs from generateFollowupCopy, shared across the whole batch. Falls back to the plain template below when not given (Gemini not configured, or the call failed). */
+  aiCopy?: { recap: string; areaBlurb: string } | null;
 }): { subject: string; html: string } {
   const subject = `Thanks for visiting ${listing.address}`;
   const day = formatNZDayKey(dayKey, { weekday: "long", day: "numeric", month: "long" });
@@ -80,15 +83,18 @@ export function buildFollowupEmail({
     .filter(Boolean)
     .join(", ");
 
-  const recap = [
-    `Thanks for coming through <b>${listing.address}</b> on ${day}.`,
-    facts ? `It's a home with ${facts}${listing.description_notes ? "." : "."}` : "",
-    listing.description_notes ?? "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const recap =
+    aiCopy?.recap ??
+    [
+      `Thanks for coming through <b>${listing.address}</b> on ${day}.`,
+      facts ? `It's a home with ${facts}${listing.description_notes ? "." : "."}` : "",
+      listing.description_notes ?? "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   const areaBlurb =
+    aiCopy?.areaBlurb ??
     listing.area_notes ??
     `${listing.suburb} is part of the ${listing.region} area, with local shops, schools and amenities close by.`;
 
